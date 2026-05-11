@@ -5,9 +5,15 @@ on:
     - cron: "0 14 * * *"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   generate:
     runs-on: ubuntu-latest
+    concurrency:
+      group: cyberbriefs-generate
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
 
@@ -28,13 +34,12 @@ jobs:
           OPENAI_IMAGE_OUTPUT_FORMAT: ${{ secrets.OPENAI_IMAGE_OUTPUT_FORMAT }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
-          CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
-          CLOUDFLARE_R2_BUCKET: ${{ secrets.CLOUDFLARE_R2_BUCKET }}
-          CLOUDFLARE_R2_PUBLIC_BASE_URL: ${{ secrets.CLOUDFLARE_R2_PUBLIC_BASE_URL }}
           WORKER_BASE_URL: ${{ secrets.WORKER_BASE_URL }}
           WORKER_SHARED_SECRET: ${{ secrets.WORKER_SHARED_SECRET }}
+          IMAGE_STORAGE_BACKEND: github
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_IMAGE_BRANCH: main
+          GITHUB_IMAGE_PATH_PREFIX: public/posts
           CYBERBRIEFS_TIMEZONE: ${{ vars.CYBERBRIEFS_TIMEZONE || 'Asia/Dubai' }}
           CYBERBRIEFS_BRAND_NAME: ${{ vars.CYBERBRIEFS_BRAND_NAME || 'CyberBriefsDaily' }}
         run: python scripts/generate_post.py --slot evening
