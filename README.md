@@ -6,12 +6,13 @@ This repository implements:
 
 - Two scheduled daily draft generations with GitHub Actions.
 - OpenAI-generated cybersecurity infographic images and captions using the latest Image API model.
-- Cloudflare R2 image hosting for public Instagram media URLs.
+- No-credit-card image hosting through this public GitHub repository.
+- Optional Cloudflare R2 image hosting if you later choose to add a payment method.
 - Cloudflare Worker Telegram approval webhook.
 - Instagram Graph API publishing after manual Telegram approval.
 - Cloudflare Worker deployment directly from GitHub Actions.
 
-The automation infrastructure can run on free tiers. OpenAI API image generation is the expected paid component.
+The automation infrastructure can run without a paid server. OpenAI API image generation is the expected paid component.
 
 ## Architecture
 
@@ -19,7 +20,8 @@ The automation infrastructure can run on free tiers. OpenAI API image generation
 GitHub Actions
   -> Python generator
   -> OpenAI text + image generation
-  -> Cloudflare R2 upload
+  -> commit image to public/posts/
+  -> public raw.githubusercontent.com image URL
   -> Cloudflare Worker post registry
   -> Telegram approval message
 
@@ -28,6 +30,23 @@ Telegram Approve button
   -> Instagram Graph API create media container
   -> Instagram Graph API publish container
   -> Telegram confirmation
+```
+
+## No-Credit-Card Image Hosting
+
+Cloudflare R2 may ask for a payment method before bucket creation. If you want to avoid that, skip R2.
+
+The default setup now uses GitHub-hosted generated images:
+
+```text
+public/posts/<post_id>.jpg
+https://raw.githubusercontent.com/imraneggy/Cyberbriefs/main/public/posts/<post_id>.jpg
+```
+
+Detailed guide:
+
+```text
+docs/NO_CARD_SETUP.md
 ```
 
 ## Repository Layout
@@ -46,6 +65,7 @@ cloudflare-worker/
 src/cyberbriefs/
   config.py
   generator.py
+  github_storage.py
   instagram.py
   models.py
   openai_client.py
@@ -58,6 +78,7 @@ scripts/
   expire_pending.py
 
 docs/
+  NO_CARD_SETUP.md
   GITHUB_WORKER_DEPLOY.md
   SETUP.md
   IMPLEMENTATION_GUIDE.md
@@ -75,7 +96,7 @@ reports/
 
 1. OpenAI API account.
 2. Telegram bot from `@BotFather`.
-3. Cloudflare free account with R2 enabled.
+3. Cloudflare free account for Worker/KV.
 4. Instagram Business or Creator account.
 5. Facebook Page linked to the Instagram account.
 6. Meta developer app with Instagram Graph API access.
@@ -87,7 +108,7 @@ Add these in GitHub:
 
 `Settings -> Secrets and variables -> Actions -> New repository secret`
 
-Generation secrets:
+Generation secrets for no-card setup:
 
 ```text
 OPENAI_API_KEY
@@ -98,11 +119,6 @@ OPENAI_IMAGE_SIZE
 OPENAI_IMAGE_OUTPUT_FORMAT
 TELEGRAM_BOT_TOKEN
 TELEGRAM_ADMIN_CHAT_ID
-CLOUDFLARE_ACCOUNT_ID
-CLOUDFLARE_R2_ACCESS_KEY_ID
-CLOUDFLARE_R2_SECRET_ACCESS_KEY
-CLOUDFLARE_R2_BUCKET
-CLOUDFLARE_R2_PUBLIC_BASE_URL
 WORKER_BASE_URL
 WORKER_SHARED_SECRET
 ```
@@ -118,6 +134,15 @@ TELEGRAM_ADMIN_CHAT_ID
 INSTAGRAM_ACCESS_TOKEN
 INSTAGRAM_USER_ID
 WORKER_SHARED_SECRET
+```
+
+Optional only if using R2 later:
+
+```text
+CLOUDFLARE_R2_ACCESS_KEY_ID
+CLOUDFLARE_R2_SECRET_ACCESS_KEY
+CLOUDFLARE_R2_BUCKET
+CLOUDFLARE_R2_PUBLIC_BASE_URL
 ```
 
 Optional GitHub variables:
@@ -136,6 +161,7 @@ OPENAI_IMAGE_MODEL=gpt-image-2
 OPENAI_IMAGE_QUALITY=low
 OPENAI_IMAGE_SIZE=1024x1024
 OPENAI_IMAGE_OUTPUT_FORMAT=jpeg
+IMAGE_STORAGE_BACKEND=github
 CYBERBRIEFS_TIMEZONE=Asia/Dubai
 CYBERBRIEFS_BRAND_NAME=CyberBriefsDaily
 ```
@@ -156,12 +182,11 @@ This repo includes:
 
 Steps:
 
-1. Create Cloudflare R2 bucket.
-2. Create Cloudflare KV namespace and save its ID as `CLOUDFLARE_KV_NAMESPACE_ID`.
-3. Create a Cloudflare API token and save it as `CLOUDFLARE_API_TOKEN`.
-4. Add Instagram Worker secrets to GitHub: `INSTAGRAM_ACCESS_TOKEN` and `INSTAGRAM_USER_ID`.
-5. Go to `Actions -> Deploy Cloudflare Worker -> Run workflow`.
-6. Copy the deployed Worker URL and save it as `WORKER_BASE_URL`.
+1. Create Cloudflare KV namespace and save its ID as `CLOUDFLARE_KV_NAMESPACE_ID`.
+2. Create a Cloudflare API token and save it as `CLOUDFLARE_API_TOKEN`.
+3. Add Instagram Worker secrets to GitHub: `INSTAGRAM_ACCESS_TOKEN` and `INSTAGRAM_USER_ID`.
+4. Go to `Actions -> Deploy Cloudflare Worker -> Run workflow`.
+5. Copy the deployed Worker URL and save it as `WORKER_BASE_URL`.
 
 Detailed guide:
 
@@ -205,18 +230,6 @@ The Worker publishes by:
 
 1. `POST /{ig-user-id}/media` with `image_url` and `caption`.
 2. `POST /{ig-user-id}/media_publish` with `creation_id`.
-
-## Cloudflare R2 Setup
-
-Create an R2 bucket, then add a public domain or `r2.dev` public URL.
-
-Set:
-
-```text
-CLOUDFLARE_R2_PUBLIC_BASE_URL=https://your-public-r2-domain
-```
-
-The generated image URL must be publicly fetchable by Instagram.
 
 ## Test A Draft
 
