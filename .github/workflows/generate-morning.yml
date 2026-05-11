@@ -40,6 +40,12 @@ jobs:
           # Optional alternative free text providers
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}
+          # Recraft v3 (best text-in-image) and NVIDIA NIM (FLUX-Pro variants)
+          RECRAFT_API_KEY: ${{ secrets.RECRAFT_API_KEY }}
+          RECRAFT_MODEL: ${{ vars.RECRAFT_MODEL || 'recraftv3' }}
+          RECRAFT_STYLE: ${{ vars.RECRAFT_STYLE || 'digital_illustration' }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          NVIDIA_MODEL: ${{ vars.NVIDIA_MODEL || 'black-forest-labs/flux.1-schnell' }}
           # ── OpenAI (only used if CONTENT_PROVIDER=openai) ──
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_TEXT_MODEL: ${{ secrets.OPENAI_TEXT_MODEL }}
@@ -61,4 +67,4 @@ jobs:
           # ── Brand ──
           CYBERBRIEFS_TIMEZONE: ${{ vars.CYBERBRIEFS_TIMEZONE || 'Asia/Dubai' }}
           CYBERBRIEFS_BRAND_NAME: ${{ vars.CYBERBRIEFS_BRAND_NAME || 'CyberBriefsDaily' }}
-        run: python scripts/generate_post.py --slot morning
+        run: python scripts/generate_post.py --slot morning --drafts ${{ vars.MORNING_DRAFTS || '3' }}

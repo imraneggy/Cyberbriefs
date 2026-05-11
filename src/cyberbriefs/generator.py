@@ -21,7 +21,7 @@ from cyberbriefs.topics import choose_topic
 
 
 FREE_TEXT_PROVIDERS = {"github_models", "groq", "huggingface"}
-FREE_IMAGE_PROVIDERS = {"pollinations", "huggingface", "cloudflare"}
+FREE_IMAGE_PROVIDERS = {"recraft", "nvidia", "pollinations", "huggingface", "cloudflare"}
 
 
 def _enrich_image_prompt(raw_prompt: str, topic: str) -> str:

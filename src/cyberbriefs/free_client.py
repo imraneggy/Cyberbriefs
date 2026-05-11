@@ -348,6 +348,120 @@ class CloudflareImageClient:
         return resp.content
 
 
+class RecraftImageClient:
+    """Recraft v3 — purpose-built for readable in-image text + vector-quality
+    illustration. 50 images/day on the free tier. Best free choice for
+    infographic posts where the headline must be readable.
+
+    Free tier: 50 credits/day; each image = 1 credit (default size).
+    Sign up at https://www.recraft.ai/ → Settings → API → create token.
+    Set RECRAFT_API_KEY env var.
+
+    Default style 'digital_illustration' gives the clean flat-design look
+    that Instagram cybersecurity posts use. Other free styles:
+      - 'digital_illustration' (default, clean flat)
+      - 'vector_illustration' (SVG-like)
+      - 'realistic_image' (photoreal)
+      - 'icon' (simple icon set)
+    """
+
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "recraftv3",
+        style: str = "digital_illustration",
+        substyle: str | None = None,
+        size: str = "1024x1024",
+    ) -> None:
+        self.api_key = api_key
+        self.model = model
+        self.style = style
+        self.substyle = substyle
+        self.size = size
+        self._client = httpx.Client(
+            base_url="https://external.api.recraft.ai/v1",
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=180,
+        )
+
+    def generate_image(self, prompt: str) -> bytes:
+        # Recraft API: POST /images/generations returns a URL; we then GET the image.
+        payload: dict[str, Any] = {
+            "prompt": prompt[:1000],
+            "style": self.style,
+            "model": self.model,
+            "size": self.size,
+            "n": 1,
+            "response_format": "url",
+        }
+        if self.substyle:
+            payload["substyle"] = self.substyle
+        resp = self._client.post("/images/generations", json=payload)
+        if resp.status_code >= 400:
+            raise RuntimeError(f"Recraft generation failed ({resp.status_code}): {resp.text[:200]}")
+        data = resp.json()
+        url = data["data"][0]["url"]
+        img_resp = httpx.get(url, timeout=60)
+        img_resp.raise_for_status()
+        return img_resp.content
+
+
+class NvidiaImageClient:
+    """NVIDIA NIM / build.nvidia.com hosted FLUX.1 family + others.
+
+    Free credits on signup (typically 1000+), then paid. Useful when you want
+    higher-quality FLUX variants (flux.1-dev, flux.1-schnell, flux.1.1-pro-ultra)
+    or NVIDIA-specific models.
+
+    Sign up at https://build.nvidia.com/ → personal API key.
+    Set NVIDIA_API_KEY env var.
+
+    Default model 'black-forest-labs/flux.1-schnell' is the fastest free FLUX.
+    For higher quality try 'black-forest-labs/flux.1-dev' (slower).
+    """
+
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "black-forest-labs/flux.1-schnell",
+        width: int = 1024,
+        height: int = 1024,
+    ) -> None:
+        self.api_key = api_key
+        self.model = model
+        self.width = width
+        self.height = height
+        self._client = httpx.Client(
+            base_url="https://ai.api.nvidia.com/v1",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Accept": "application/json",
+            },
+            timeout=180,
+        )
+
+    def generate_image(self, prompt: str) -> bytes:
+        payload = {
+            "prompt": prompt[:1500],
+            "width": self.width,
+            "height": self.height,
+            "steps": 4,
+            "seed": int(time.time()) % 2_000_000_000,
+        }
+        resp = self._client.post(f"/genai/{self.model}", json=payload)
+        if resp.status_code >= 400:
+            raise RuntimeError(f"NVIDIA NIM failed ({resp.status_code}): {resp.text[:200]}")
+        data = resp.json()
+        # NIM returns either base64 in "artifacts" or a URL — handle both
+        if "artifacts" in data and data["artifacts"]:
+            import base64
+            return base64.b64decode(data["artifacts"][0]["base64"])
+        if "image" in data:
+            import base64
+            return base64.b64decode(data["image"])
+        raise RuntimeError(f"NVIDIA NIM unexpected response shape: {list(data.keys())}")
+
+
 # ── FACTORIES ─────────────────────────────────────────────────────────────
 
 def build_text_client(provider: str, env_get=os.environ.get):
@@ -378,6 +492,24 @@ def build_image_client(provider: str, env_get=os.environ.get):
     ``generate_image(prompt)`` method.
     """
     provider = provider.lower()
+    if provider == "recraft":
+        api_key = env_get("RECRAFT_API_KEY")
+        if not api_key:
+            raise RuntimeError("recraft image provider needs RECRAFT_API_KEY (free signup at recraft.ai)")
+        return RecraftImageClient(
+            api_key=api_key,
+            model=env_get("RECRAFT_MODEL", "recraftv3"),
+            style=env_get("RECRAFT_STYLE", "digital_illustration"),
+            substyle=env_get("RECRAFT_SUBSTYLE") or None,
+        )
+    if provider == "nvidia":
+        api_key = env_get("NVIDIA_API_KEY")
+        if not api_key:
+            raise RuntimeError("nvidia image provider needs NVIDIA_API_KEY (free signup at build.nvidia.com)")
+        return NvidiaImageClient(
+            api_key=api_key,
+            model=env_get("NVIDIA_MODEL", "black-forest-labs/flux.1-schnell"),
+        )
     if provider == "pollinations":
         return PollinationsImageClient(model=env_get("POLLINATIONS_MODEL", "flux"))
     if provider == "huggingface":
