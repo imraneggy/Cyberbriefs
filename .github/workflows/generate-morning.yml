@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  models: read   # required for CONTENT_PROVIDER=github_models
 
 jobs:
   generate:
@@ -26,21 +27,38 @@ jobs:
 
       - name: Generate morning post
         env:
+          # ── Content / image provider selection ──
+          # Set CONTENT_PROVIDER / IMAGE_PROVIDER / CAROUSEL_SLIDES as repo
+          # Variables (Settings -> Secrets and variables -> Actions -> Variables)
+          # to override defaults. Default free combo: github_models + pollinations.
+          CONTENT_PROVIDER: ${{ vars.CONTENT_PROVIDER || 'github_models' }}
+          IMAGE_PROVIDER:   ${{ vars.IMAGE_PROVIDER   || 'pollinations'   }}
+          CAROUSEL_SLIDES:  ${{ vars.CAROUSEL_SLIDES  || '1'              }}
+          # GitHub Models uses the auto-provided GITHUB_TOKEN (no secret needed)
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_MODELS_MODEL: ${{ vars.GITHUB_MODELS_MODEL || 'openai/gpt-4o-mini' }}
+          # Optional alternative free text providers
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}
+          # ── OpenAI (only used if CONTENT_PROVIDER=openai) ──
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_TEXT_MODEL: ${{ secrets.OPENAI_TEXT_MODEL }}
           OPENAI_IMAGE_MODEL: ${{ secrets.OPENAI_IMAGE_MODEL }}
           OPENAI_IMAGE_QUALITY: ${{ secrets.OPENAI_IMAGE_QUALITY }}
           OPENAI_IMAGE_SIZE: ${{ secrets.OPENAI_IMAGE_SIZE }}
           OPENAI_IMAGE_OUTPUT_FORMAT: ${{ secrets.OPENAI_IMAGE_OUTPUT_FORMAT }}
+          # ── Telegram + Worker ──
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
           WORKER_BASE_URL: ${{ secrets.WORKER_BASE_URL }}
           WORKER_SHARED_SECRET: ${{ secrets.WORKER_SHARED_SECRET }}
+          # ── Image storage (GitHub repo) ──
           IMAGE_STORAGE_BACKEND: github
           GITHUB_REPOSITORY: ${{ github.repository }}
           CYBERBRIEFS_GITHUB_TOKEN: ${{ github.token }}
           GITHUB_IMAGE_BRANCH: main
           GITHUB_IMAGE_PATH_PREFIX: public/posts
+          # ── Brand ──
           CYBERBRIEFS_TIMEZONE: ${{ vars.CYBERBRIEFS_TIMEZONE || 'Asia/Dubai' }}
           CYBERBRIEFS_BRAND_NAME: ${{ vars.CYBERBRIEFS_BRAND_NAME || 'CyberBriefsDaily' }}
         run: python scripts/generate_post.py --slot morning
