@@ -37,7 +37,7 @@ class GitHubImageStorage:
         image_bytes: bytes,
         image_format: str = "jpeg",
     ) -> tuple[str, str]:
-        extension = "jpg" if image_format == "jpeg" else image_format
+        extension = _extension_for_format(image_format)
         path = f"{self.path_prefix}/{post_id}.{extension}"
         encoded = base64.b64encode(image_bytes).decode("ascii")
         response = self._client.put(
@@ -55,3 +55,16 @@ class GitHubImageStorage:
         if self.public_base_url:
             return f"{self.public_base_url}/{path}"
         return f"https://raw.githubusercontent.com/{self.repository}/{self.branch}/{path}"
+
+
+def _extension_for_format(image_format: str) -> str:
+    normalized = image_format.lower().strip().replace("image/", "")
+    if normalized in {"jpeg", "jpg"}:
+        return "jpg"
+    if normalized in {"svg", "svg+xml"}:
+        return "svg"
+    if normalized == "png":
+        return "png"
+    if normalized == "webp":
+        return "webp"
+    raise RuntimeError(f"Unsupported image format for GitHub storage: {image_format}")
