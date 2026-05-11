@@ -20,31 +20,48 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate deployment secrets
+      - name: Prepare and validate deployment secrets
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_KV_NAMESPACE_ID: ${{ secrets.CLOUDFLARE_KV_NAMESPACE_ID }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
-          INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
-          INSTAGRAM_USER_ID: ${{ secrets.INSTAGRAM_USER_ID }}
-          WORKER_SHARED_SECRET: ${{ secrets.WORKER_SHARED_SECRET }}
+          RAW_CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          RAW_CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RAW_CLOUDFLARE_KV_NAMESPACE_ID: ${{ secrets.CLOUDFLARE_KV_NAMESPACE_ID }}
+          RAW_TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          RAW_TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
+          RAW_INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
+          RAW_INSTAGRAM_USER_ID: ${{ secrets.INSTAGRAM_USER_ID }}
+          RAW_WORKER_SHARED_SECRET: ${{ secrets.WORKER_SHARED_SECRET }}
         shell: bash
         run: |
+          trim() {
+            printf '%s' "$1" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
+          }
+
+          {
+            echo "CLOUDFLARE_API_TOKEN=$(trim "$RAW_CLOUDFLARE_API_TOKEN")"
+            echo "CLOUDFLARE_ACCOUNT_ID=$(trim "$RAW_CLOUDFLARE_ACCOUNT_ID")"
+            echo "CLOUDFLARE_KV_NAMESPACE_ID=$(trim "$RAW_CLOUDFLARE_KV_NAMESPACE_ID")"
+            echo "TELEGRAM_BOT_TOKEN=$(trim "$RAW_TELEGRAM_BOT_TOKEN")"
+            echo "TELEGRAM_ADMIN_CHAT_ID=$(trim "$RAW_TELEGRAM_ADMIN_CHAT_ID")"
+            echo "INSTAGRAM_ACCESS_TOKEN=$(trim "$RAW_INSTAGRAM_ACCESS_TOKEN")"
+            echo "INSTAGRAM_USER_ID=$(trim "$RAW_INSTAGRAM_USER_ID")"
+            echo "WORKER_SHARED_SECRET=$(trim "$RAW_WORKER_SHARED_SECRET")"
+          } >> "$GITHUB_ENV"
+
           missing=0
           for name in \
-            CLOUDFLARE_API_TOKEN \
-            CLOUDFLARE_ACCOUNT_ID \
-            CLOUDFLARE_KV_NAMESPACE_ID \
-            TELEGRAM_BOT_TOKEN \
-            TELEGRAM_ADMIN_CHAT_ID \
-            INSTAGRAM_ACCESS_TOKEN \
-            INSTAGRAM_USER_ID \
-            WORKER_SHARED_SECRET
+            RAW_CLOUDFLARE_API_TOKEN \
+            RAW_CLOUDFLARE_ACCOUNT_ID \
+            RAW_CLOUDFLARE_KV_NAMESPACE_ID \
+            RAW_TELEGRAM_BOT_TOKEN \
+            RAW_TELEGRAM_ADMIN_CHAT_ID \
+            RAW_INSTAGRAM_ACCESS_TOKEN \
+            RAW_INSTAGRAM_USER_ID \
+            RAW_WORKER_SHARED_SECRET
           do
-            if [ -z "${!name}" ]; then
-              echo "Missing required secret: $name"
+            value="$(trim "${!name}")"
+            if [ -z "$value" ]; then
+              clean_name="${name#RAW_}"
+              echo "Missing required secret: $clean_name"
               missing=1
             fi
           done
@@ -52,8 +69,6 @@ jobs:
 
       - name: Generate Wrangler config
         working-directory: cloudflare-worker
-        env:
-          CLOUDFLARE_KV_NAMESPACE_ID: ${{ secrets.CLOUDFLARE_KV_NAMESPACE_ID }}
         shell: bash
         run: |
           cat > wrangler.toml <<EOF
@@ -69,8 +84,8 @@ jobs:
       - name: Deploy Worker
         uses: cloudflare/wrangler-action@v3
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          apiToken: ${{ env.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: cloudflare-worker
           command: deploy
           secrets: |
@@ -80,8 +95,8 @@ jobs:
             INSTAGRAM_USER_ID
             WORKER_SHARED_SECRET
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
-          INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
-          INSTAGRAM_USER_ID: ${{ secrets.INSTAGRAM_USER_ID }}
-          WORKER_SHARED_SECRET: ${{ secrets.WORKER_SHARED_SECRET }}
+          TELEGRAM_BOT_TOKEN: ${{ env.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ADMIN_CHAT_ID: ${{ env.TELEGRAM_ADMIN_CHAT_ID }}
+          INSTAGRAM_ACCESS_TOKEN: ${{ env.INSTAGRAM_ACCESS_TOKEN }}
+          INSTAGRAM_USER_ID: ${{ env.INSTAGRAM_USER_ID }}
+          WORKER_SHARED_SECRET: ${{ env.WORKER_SHARED_SECRET }}
