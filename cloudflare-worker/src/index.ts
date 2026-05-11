@@ -29,6 +29,10 @@ interface GeneratedPost {
   sources: Array<{ title: string; url: string; publisher?: string }>;
   r2_object_key?: string;
   r2_image_url?: string;
+  // Carousel: list of image URLs (cover at [0]). When length > 1, this
+  // is published as IG CAROUSEL_ALBUM. Single posts have length 0 or 1.
+  image_urls?: string[];
+  slide_titles?: string[];
   telegram_message_id?: number;
   instagram_media_id?: string;
   created_at: string;
@@ -175,9 +179,30 @@ async function approveAndPublish(
   callback: TelegramCallbackQuery,
   post: GeneratedPost,
 ): Promise<Response> {
-  if (!post.r2_image_url) {
+  // Idempotency guard: if this post already published, do nothing.
+  // Multiple click events on the same approval button (Telegram retries,
+  // double-taps on mobile, network races) would otherwise create duplicate
+  // IG posts and waste Graph API quota.
+  if (post.status === "published" && post.instagram_media_id) {
+    await answerCallback(env, callback.id, `Already published (IG ID ${post.instagram_media_id}).`);
+    return json({
+      ok: true,
+      status: post.status,
+      instagram_media_id: post.instagram_media_id,
+      already_published: true,
+    });
+  }
+  if (post.status === "approved") {
+    // Approved but not yet published — likely a previous publish call is
+    // mid-flight or failed silently. Retry, but mark the prior attempt.
+    post.error_log = `Re-attempting publish at ${new Date().toISOString()}; prior error_log: ${post.error_log ?? "none"}`;
+  }
+
+  const carouselUrls = (post.image_urls ?? []).filter(Boolean);
+  const singleUrl = post.r2_image_url;
+  if (!singleUrl && carouselUrls.length === 0) {
     post.status = "failed";
-    post.error_log = "Missing public image URL.";
+    post.error_log = "Missing public image URL(s).";
     await putPost(env, post);
     await answerCallback(env, callback.id, "Failed: missing image URL.");
     return json({ ok: false, error: "missing_image_url" }, 400);
@@ -189,14 +214,17 @@ async function approveAndPublish(
   await answerCallback(env, callback.id, "Approved. Publishing...");
 
   try {
-    const instagramMediaId = await publishToInstagram(env, post);
+    const instagramMediaId =
+      carouselUrls.length > 1
+        ? await publishCarouselToInstagram(env, post, carouselUrls)
+        : await publishImageToInstagram(env, post, singleUrl ?? carouselUrls[0]);
     post.status = "published";
     post.instagram_media_id = instagramMediaId;
     post.published_at = new Date().toISOString();
     await putPost(env, post);
     await sendTelegramMessage(
       env,
-      `Published: ${post.headline}\nInstagram media ID: ${instagramMediaId}`,
+      `Published${carouselUrls.length > 1 ? ` (carousel: ${carouselUrls.length} slides)` : ""}: ${post.headline}\nInstagram media ID: ${instagramMediaId}`,
     );
     return json({ ok: true, status: post.status, instagram_media_id: instagramMediaId });
   } catch (error) {
@@ -211,11 +239,15 @@ async function approveAndPublish(
   }
 }
 
-async function publishToInstagram(env: Env, post: GeneratedPost): Promise<string> {
+async function publishImageToInstagram(
+  env: Env,
+  post: GeneratedPost,
+  imageUrl: string,
+): Promise<string> {
   const caption = captionForInstagram(post);
   const createUrl = `https://graph.facebook.com/v20.0/${env.INSTAGRAM_USER_ID}/media`;
   const createBody = new URLSearchParams({
-    image_url: post.r2_image_url ?? "",
+    image_url: imageUrl,
     caption,
     access_token: env.INSTAGRAM_ACCESS_TOKEN,
   });
@@ -228,9 +260,60 @@ async function publishToInstagram(env: Env, post: GeneratedPost): Promise<string
     throw new Error("Instagram did not return media container id.");
   }
 
+  return await publishContainerToInstagram(env, container.id);
+}
+
+async function publishCarouselToInstagram(
+  env: Env,
+  post: GeneratedPost,
+  urls: string[],
+): Promise<string> {
+  // Step 1: create a child container per slide (is_carousel_item=true)
+  const childIds: string[] = [];
+  for (const url of urls) {
+    const childUrl = `https://graph.facebook.com/v20.0/${env.INSTAGRAM_USER_ID}/media`;
+    const childBody = new URLSearchParams({
+      image_url: url,
+      is_carousel_item: "true",
+      access_token: env.INSTAGRAM_ACCESS_TOKEN,
+    });
+    const childResp = await fetch(childUrl, { method: "POST", body: childBody });
+    if (!childResp.ok) {
+      throw new Error(`Carousel child create failed for ${url}: ${await childResp.text()}`);
+    }
+    const child = (await childResp.json()) as { id?: string };
+    if (!child.id) {
+      throw new Error(`Carousel child returned no id for ${url}`);
+    }
+    childIds.push(child.id);
+  }
+
+  // Step 2: create carousel container that references the children
+  const caption = captionForInstagram(post);
+  const carouselUrl = `https://graph.facebook.com/v20.0/${env.INSTAGRAM_USER_ID}/media`;
+  const carouselBody = new URLSearchParams({
+    media_type: "CAROUSEL",
+    children: childIds.join(","),
+    caption,
+    access_token: env.INSTAGRAM_ACCESS_TOKEN,
+  });
+  const carouselResp = await fetch(carouselUrl, { method: "POST", body: carouselBody });
+  if (!carouselResp.ok) {
+    throw new Error(`Carousel container failed: ${await carouselResp.text()}`);
+  }
+  const carousel = (await carouselResp.json()) as { id?: string };
+  if (!carousel.id) {
+    throw new Error("Instagram did not return carousel container id.");
+  }
+
+  // Step 3: publish the carousel
+  return await publishContainerToInstagram(env, carousel.id);
+}
+
+async function publishContainerToInstagram(env: Env, creationId: string): Promise<string> {
   const publishUrl = `https://graph.facebook.com/v20.0/${env.INSTAGRAM_USER_ID}/media_publish`;
   const publishBody = new URLSearchParams({
-    creation_id: container.id,
+    creation_id: creationId,
     access_token: env.INSTAGRAM_ACCESS_TOKEN,
   });
   const publishResponse = await fetch(publishUrl, { method: "POST", body: publishBody });

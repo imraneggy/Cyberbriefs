@@ -37,12 +37,24 @@ class GeneratedPost(BaseModel):
     sources: list[Source] = Field(default_factory=list)
     r2_object_key: str | None = None
     r2_image_url: str | None = None
+    # Carousel support: when len(image_urls) > 1, this is an IG carousel post.
+    # image_urls[0] mirrors r2_image_url (the cover slide), so single-image
+    # downstream code keeps working. The Cloudflare Worker uses image_urls
+    # to publish carousels via the IG Graph API CAROUSEL_ALBUM flow.
+    image_urls: list[str] = Field(default_factory=list)
+    # Per-slide titles for carousels (empty list for single posts). 1:1
+    # indexed with image_urls.
+    slide_titles: list[str] = Field(default_factory=list)
     telegram_message_id: int | None = None
     instagram_media_id: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     approved_at: datetime | None = None
     published_at: datetime | None = None
     error_log: str | None = None
+
+    @property
+    def is_carousel(self) -> bool:
+        return len(self.image_urls) > 1
 
     def caption_for_instagram(self) -> str:
         tags = " ".join(self.hashtags)

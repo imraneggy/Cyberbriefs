@@ -1,36 +1,54 @@
 # CyberBriefs Automation
 
 Fully serverless Instagram infographic automation with Telegram approval.
+**Now runnable at $0/month** with the free content stack.
 
 This repository implements:
 
 - Two scheduled daily draft generations with GitHub Actions.
-- OpenAI-generated cybersecurity infographic images and captions using the latest Image API model.
-- No-credit-card image hosting through this public GitHub repository.
-- Optional Cloudflare R2 image hosting if you later choose to add a payment method.
-- Cloudflare Worker Telegram approval webhook.
-- Instagram Graph API publishing after manual Telegram approval.
+- **Free or paid content generation**:
+  - Free: GitHub Models / Groq / Hugging Face for text + Pollinations / HF / Cloudflare for images.
+  - Paid: OpenAI for both (original setup).
+- **Carousel support** — 2-10 slide Instagram posts for 3-5× the engagement of single images.
+- 100+ curated cybersecurity topics (≈50 days of fresh content at 2 posts/day).
+- No-credit-card image hosting via this public GitHub repository.
+- Optional Cloudflare R2 image hosting if you later add a payment method.
+- Cloudflare Worker Telegram approval webhook with **idempotent publish**.
+- Instagram Graph API publishing (single image + CAROUSEL_ALBUM) after manual approval.
 - Cloudflare Worker deployment directly from GitHub Actions.
+- MIT licensed.
 
-The automation infrastructure can run without a paid server. OpenAI API image generation is the expected paid component.
+The entire pipeline can run at zero cost. See [docs/FREE_STACK_GUIDE.md](docs/FREE_STACK_GUIDE.md).
 
 ## Architecture
 
 ```text
-GitHub Actions
+GitHub Actions (cron)
   -> Python generator
-  -> OpenAI text + image generation
-  -> commit image to public/posts/
-  -> public raw.githubusercontent.com image URL
+  -> Text provider (github_models | groq | huggingface | openai | test)
+  -> Image provider, N slides (pollinations | huggingface | cloudflare | openai)
+  -> commit image(s) to public/posts/
+  -> public raw.githubusercontent.com image URLs
   -> Cloudflare Worker post registry
   -> Telegram approval message
 
 Telegram Approve button
-  -> Cloudflare Worker webhook
-  -> Instagram Graph API create media container
-  -> Instagram Graph API publish container
+  -> Cloudflare Worker webhook (idempotent — re-clicks are no-op)
+  -> Instagram Graph API:
+       single image: create container -> media_publish
+       carousel:     N child containers -> CAROUSEL container -> media_publish
   -> Telegram confirmation
 ```
+
+## Quickstart — $0/month setup
+
+```text
+CONTENT_PROVIDER=github_models   # free in GH Actions
+IMAGE_PROVIDER=pollinations      # truly free, no API key
+CAROUSEL_SLIDES=3                # 3-slide carousels (optional, default 1)
+```
+
+That's it. No OpenAI key needed. See [docs/FREE_STACK_GUIDE.md](docs/FREE_STACK_GUIDE.md).
 
 ## No-Credit-Card Image Hosting
 
@@ -64,20 +82,25 @@ cloudflare-worker/
 
 src/cyberbriefs/
   config.py
-  generator.py
+  free_client.py        ← github_models / groq / huggingface / pollinations / cloudflare adapters
+  generator.py          ← single + carousel content + image flow
   github_storage.py
   instagram.py
-  models.py
+  models.py             ← GeneratedPost with image_urls[] for carousels
   openai_client.py
   r2.py
   telegram.py
-  topics.py
+  test_content.py
+  topics.py             ← 100+ curated topics
 
 scripts/
   generate_post.py
   expire_pending.py
 
 docs/
+  FREE_STACK_GUIDE.md           ← provider walkthroughs + quality comparison
+  CAROUSEL_GUIDE.md             ← Instagram carousel flow + composition
+  IMPROVEMENTS_LOG.md           ← changelog of features shipped
   NO_CARD_SETUP.md
   GITHUB_WORKER_DEPLOY.md
   SETUP.md
@@ -87,6 +110,9 @@ docs/
   PROJECT_MODIFICATIONS.md
   MONETIZATION_GUIDE.md
   RUNBOOK.md
+  FREE_TEST_MODE.md
+  OPENAI_API_KEY_GUIDE.md
+  CONTENT_STRATEGY.md
 
 reports/
   full-report.html
@@ -94,7 +120,8 @@ reports/
 
 ## Required Accounts
 
-1. OpenAI API account.
+1. **OpenAI API account** — _optional_ if you use the free stack
+   (`CONTENT_PROVIDER=github_models` or `groq`).
 2. Telegram bot from `@BotFather`.
 3. Cloudflare free account for Worker/KV.
 4. Instagram Business or Creator account.

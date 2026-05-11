@@ -53,6 +53,13 @@ class Settings:
     timezone: str = "Asia/Dubai"
     brand_name: str = "CyberBriefsDaily"
     site_url: str | None = None
+    # Carousel — number of slides when content_provider supports it.
+    # 1 = single image (default, IG single post). 2-10 = carousel.
+    carousel_slides: int = 1
+    # Free-stack image provider used when content_provider is a free option
+    # (github_models / groq / huggingface / pollinations). One of:
+    #   pollinations | huggingface | cloudflare
+    image_provider: str = "pollinations"
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -63,6 +70,16 @@ class Settings:
 
         if content_provider == "openai" and not _optional_none("OPENAI_API_KEY"):
             raise RuntimeError("Missing required environment variable: OPENAI_API_KEY")
+        # Free providers each have their own credential check inside free_client.
+        # We deliberately do NOT require any LLM key when content_provider == "test".
+        if content_provider == "github_models":
+            # GitHub Actions provides GITHUB_TOKEN automatically.
+            if not (_optional_none("GITHUB_TOKEN") or _optional_none("CYBERBRIEFS_GITHUB_TOKEN")):
+                raise RuntimeError("github_models provider needs GITHUB_TOKEN (auto in Actions, or set locally)")
+        if content_provider == "groq" and not _optional_none("GROQ_API_KEY"):
+            raise RuntimeError("groq provider needs GROQ_API_KEY")
+        if content_provider == "huggingface" and not _optional_none("HUGGINGFACE_API_KEY"):
+            raise RuntimeError("huggingface provider needs HUGGINGFACE_API_KEY")
 
         if image_storage_backend == "github":
             if not github_repository:
@@ -116,4 +133,6 @@ class Settings:
             timezone=_optional("CYBERBRIEFS_TIMEZONE", "Asia/Dubai"),
             brand_name=_optional("CYBERBRIEFS_BRAND_NAME", "CyberBriefsDaily"),
             site_url=os.getenv("CYBERBRIEFS_SITE_URL") or None,
+            carousel_slides=max(1, min(10, int(_optional("CAROUSEL_SLIDES", "1")))),
+            image_provider=_optional("IMAGE_PROVIDER", "pollinations").lower(),
         )
