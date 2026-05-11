@@ -57,13 +57,15 @@ class Settings:
     def from_env(cls) -> "Settings":
         image_storage_backend = _optional("IMAGE_STORAGE_BACKEND", "github").lower()
         github_repository = _optional_none("GITHUB_REPOSITORY")
-        github_token = _optional_none("GITHUB_TOKEN")
+        github_token = _optional_none("CYBERBRIEFS_GITHUB_TOKEN") or _optional_none("GITHUB_TOKEN")
 
         if image_storage_backend == "github":
             if not github_repository:
                 raise RuntimeError("Missing required environment variable for GitHub storage: GITHUB_REPOSITORY")
             if not github_token:
-                raise RuntimeError("Missing required environment variable for GitHub storage: GITHUB_TOKEN")
+                raise RuntimeError(
+                    "Missing required environment variable for GitHub storage: CYBERBRIEFS_GITHUB_TOKEN"
+                )
 
         cloudflare_account_id = _optional_none("CLOUDFLARE_ACCOUNT_ID")
         r2_access_key_id = _optional_none("CLOUDFLARE_R2_ACCESS_KEY_ID")
