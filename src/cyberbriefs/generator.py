@@ -8,20 +8,14 @@ from cyberbriefs.models import GeneratedPost
 from cyberbriefs.openai_client import OpenAIClient
 from cyberbriefs.r2 import R2Client
 from cyberbriefs.telegram import TelegramClient
+from cyberbriefs.test_content import generate_test_image_svg, generate_test_post
 from cyberbriefs.topics import choose_topic
 
 
 class PostGenerator:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self.openai = OpenAIClient(
-            api_key=settings.openai_api_key,
-            text_model=settings.openai_text_model,
-            image_model=settings.openai_image_model,
-            image_quality=settings.openai_image_quality,
-            image_size=settings.openai_image_size,
-            image_output_format=settings.openai_image_output_format,
-        )
+        self.openai = self._build_openai(settings)
         self.image_storage = self._build_image_storage(settings)
         self.telegram = TelegramClient(
             bot_token=settings.telegram_bot_token,
@@ -31,16 +25,29 @@ class PostGenerator:
 
     def run(self, *, slot: str) -> GeneratedPost:
         topic = choose_topic(slot)
-        post = self.openai.generate_post_copy(
-            topic=topic,
-            slot=slot,
-            brand_name=self.settings.brand_name,
-        )
-        image_bytes = self.openai.generate_image(post.image_prompt)
+        if self.settings.content_provider == "test":
+            post = generate_test_post(
+                topic=topic,
+                slot=slot,
+                brand_name=self.settings.brand_name,
+            )
+            image_bytes = generate_test_image_svg(headline=post.headline)
+            image_format = "svg+xml"
+        else:
+            if not self.openai:
+                raise RuntimeError("OpenAI content provider requires OPENAI_API_KEY")
+            post = self.openai.generate_post_copy(
+                topic=topic,
+                slot=slot,
+                brand_name=self.settings.brand_name,
+            )
+            image_bytes = self.openai.generate_image(post.image_prompt)
+            image_format = self.settings.openai_image_output_format
+
         object_key, image_url = self.image_storage.upload_image(
             post_id=post.post_id,
             image_bytes=image_bytes,
-            image_format=self.settings.openai_image_output_format,
+            image_format=image_format,
         )
         post.r2_object_key = object_key
         post.r2_image_url = image_url
@@ -57,6 +64,21 @@ class PostGenerator:
             json=post.model_dump(mode="json"),
         )
         response.raise_for_status()
+
+    @staticmethod
+    def _build_openai(settings: Settings) -> OpenAIClient | None:
+        if settings.content_provider != "openai":
+            return None
+        if not settings.openai_api_key:
+            raise RuntimeError("OpenAI content provider requires OPENAI_API_KEY")
+        return OpenAIClient(
+            api_key=settings.openai_api_key,
+            text_model=settings.openai_text_model,
+            image_model=settings.openai_image_model,
+            image_quality=settings.openai_image_quality,
+            image_size=settings.openai_image_size,
+            image_output_format=settings.openai_image_output_format,
+        )
 
     @staticmethod
     def _build_image_storage(settings: Settings) -> GitHubImageStorage | R2Client:
