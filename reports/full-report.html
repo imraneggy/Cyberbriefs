@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CyberBriefs Automation - Full Implementation Report</title>
+  <style>
+    :root {
+      --bg: #071017;
+      --panel: #0d1b24;
+      --panel-2: #102838;
+      --text: #eef7fb;
+      --muted: #9eb6c4;
+      --line: #244657;
+      --accent: #57d6a3;
+      --accent-2: #5bbcff;
+      --warn: #ffd166;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Aptos", "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 18% 12%, rgba(87, 214, 163, .18), transparent 28rem),
+        radial-gradient(circle at 82% 8%, rgba(91, 188, 255, .16), transparent 26rem),
+        linear-gradient(135deg, #071017 0%, #0a1620 45%, #091018 100%);
+      line-height: 1.6;
+    }
+    header {
+      padding: 72px 7vw 48px;
+      border-bottom: 1px solid var(--line);
+    }
+    .eyebrow {
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: .14em;
+      font-size: .78rem;
+      font-weight: 700;
+    }
+    h1 {
+      max-width: 900px;
+      margin: 12px 0;
+      font-size: clamp(2.2rem, 6vw, 5rem);
+      line-height: .98;
+      letter-spacing: -.05em;
+    }
+    .lead {
+      max-width: 840px;
+      color: var(--muted);
+      font-size: clamp(1rem, 2vw, 1.25rem);
+    }
+    main {
+      padding: 40px 7vw 80px;
+      display: grid;
+      gap: 24px;
+    }
+    section {
+      background: linear-gradient(160deg, rgba(13, 27, 36, .96), rgba(16, 40, 56, .86));
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      padding: clamp(22px, 4vw, 38px);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, .22);
+    }
+    h2 {
+      margin: 0 0 18px;
+      font-size: clamp(1.4rem, 3vw, 2.1rem);
+      letter-spacing: -.03em;
+    }
+    h3 {
+      color: var(--accent-2);
+      margin-top: 26px;
+    }
+    ul, ol { padding-left: 1.2rem; }
+    li { margin: 8px 0; }
+    code {
+      padding: 2px 6px;
+      border-radius: 7px;
+      background: rgba(255, 255, 255, .08);
+      color: #d7fbe8;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, .035);
+    }
+    .card strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--accent);
+    }
+    .flow {
+      display: grid;
+      gap: 10px;
+    }
+    .step {
+      padding: 14px 16px;
+      border-left: 4px solid var(--accent);
+      background: rgba(87, 214, 163, .08);
+      border-radius: 12px;
+    }
+    .warning {
+      border-color: rgba(255, 209, 102, .45);
+      background: rgba(255, 209, 102, .08);
+    }
+    footer {
+      padding: 30px 7vw 60px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="eyebrow">Implementation Report</div>
+    <h1>CyberBriefs Automation</h1>
+    <p class="lead">
+      A free-tier, serverless automation system for generating cybersecurity infographic
+      posts with OpenAI, approving them in Telegram, and publishing approved posts to Instagram.
+    </p>
+  </header>
+
+  <main>
+    <section>
+      <h2>Executive Summary</h2>
+      <p>
+        The project is designed for a creator who does not want to run a VPS or dedicated server.
+        Scheduled work runs on GitHub Actions, approval and publishing run on Cloudflare Workers,
+        generated images are hosted on Cloudflare R2, and approval happens in Telegram.
+      </p>
+      <div class="grid">
+        <div class="card"><strong>Default Image Model</strong><code>gpt-image-2</code></div>
+        <div class="card"><strong>Output Format</strong><code>jpeg</code> for Instagram compatibility</div>
+        <div class="card"><strong>Publishing Gate</strong>No Telegram approval, no Instagram post</div>
+        <div class="card"><strong>Hosting Cost</strong>Designed for free-tier infrastructure</div>
+      </div>
+    </section>
+
+    <section>
+      <h2>System Flow</h2>
+      <div class="flow">
+        <div class="step">GitHub Actions runs the morning or evening workflow.</div>
+        <div class="step">Python selects a cybersecurity topic and asks OpenAI for copy, hashtags, and image prompt.</div>
+        <div class="step">OpenAI Image API generates a JPEG infographic with <code>gpt-image-2</code>.</div>
+        <div class="step">The image uploads to Cloudflare R2 and receives a public HTTPS URL.</div>
+        <div class="step">Telegram sends the image and caption with approval buttons.</div>
+        <div class="step">Cloudflare Worker receives the Telegram callback.</div>
+        <div class="step">Approved posts publish through Instagram Graph API.</div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Tech Stack</h2>
+      <ul>
+        <li>Python 3.11 for generation scripts.</li>
+        <li>TypeScript Cloudflare Worker for webhook and publishing logic.</li>
+        <li>GitHub Actions for cron-based scheduling.</li>
+        <li>Cloudflare R2 for public image hosting.</li>
+        <li>Cloudflare KV for post state.</li>
+        <li>Telegram Bot API for manual approval.</li>
+        <li>Instagram Graph API for official publishing.</li>
+        <li>OpenAI Responses API and Image API for content creation.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Required Secrets</h2>
+      <h3>GitHub Actions</h3>
+      <ul>
+        <li><code>OPENAI_API_KEY</code></li>
+        <li><code>OPENAI_TEXT_MODEL</code></li>
+        <li><code>OPENAI_IMAGE_MODEL</code></li>
+        <li><code>OPENAI_IMAGE_QUALITY</code></li>
+        <li><code>OPENAI_IMAGE_SIZE</code></li>
+        <li><code>OPENAI_IMAGE_OUTPUT_FORMAT</code></li>
+        <li><code>TELEGRAM_BOT_TOKEN</code></li>
+        <li><code>TELEGRAM_ADMIN_CHAT_ID</code></li>
+        <li><code>CLOUDFLARE_R2_* credentials and bucket details</code></li>
+        <li><code>WORKER_BASE_URL</code></li>
+        <li><code>WORKER_SHARED_SECRET</code></li>
+      </ul>
+      <h3>Cloudflare Worker</h3>
+      <ul>
+        <li><code>TELEGRAM_BOT_TOKEN</code></li>
+        <li><code>TELEGRAM_ADMIN_CHAT_ID</code></li>
+        <li><code>INSTAGRAM_ACCESS_TOKEN</code></li>
+        <li><code>INSTAGRAM_USER_ID</code></li>
+        <li><code>WORKER_SHARED_SECRET</code></li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Implementation Rundown</h2>
+      <ol>
+        <li>Create the Cloudflare R2 bucket and KV namespace.</li>
+        <li>Deploy the Cloudflare Worker and set Worker secrets.</li>
+        <li>Register the Telegram webhook to the Worker URL.</li>
+        <li>Add GitHub Actions secrets for OpenAI, Telegram, R2, and Worker access.</li>
+        <li>Run the morning workflow manually and reject the first test post.</li>
+        <li>Run the workflow again and approve the second post.</li>
+        <li>Confirm Instagram publishing and Telegram confirmation.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>Monetization Roadmap</h2>
+      <ol>
+        <li>First 90 days: publish consistently and optimize for saves and shares.</li>
+        <li>1k-5k followers: add affiliate links for password managers, security courses, and labs.</li>
+        <li>5k-20k followers: sell awareness PDFs, templates, and sponsored posts.</li>
+        <li>20k+ followers: add newsletter sponsorships, B2B content packages, and consulting lead generation.</li>
+      </ol>
+    </section>
+
+    <section class="warning">
+      <h2>Known Constraints</h2>
+      <ul>
+        <li>OpenAI image generation is paid API usage, even when infrastructure is free-tier.</li>
+        <li>Instagram publishing requires a Business account linked to a Facebook Page.</li>
+        <li>Generated images must be publicly accessible by Meta crawlers.</li>
+        <li>GitHub scheduled workflows can run several minutes late on the free tier.</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    Generated for the CyberBriefs Automation project. Keep secrets out of Git history.
+  </footer>
+</body>
+</html>
