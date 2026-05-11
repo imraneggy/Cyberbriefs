@@ -16,6 +16,11 @@ def _required(name: str) -> str:
     return value
 
 
+def _optional(name: str, default: str) -> str:
+    value = os.getenv(name)
+    return value if value else default
+
+
 @dataclass(frozen=True)
 class Settings:
     openai_api_key: str
@@ -41,11 +46,11 @@ class Settings:
     def from_env(cls) -> "Settings":
         return cls(
             openai_api_key=_required("OPENAI_API_KEY"),
-            openai_text_model=os.getenv("OPENAI_TEXT_MODEL", "gpt-4.1-mini"),
-            openai_image_model=os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-2"),
-            openai_image_quality=os.getenv("OPENAI_IMAGE_QUALITY", "low"),
-            openai_image_size=os.getenv("OPENAI_IMAGE_SIZE", "1024x1024"),
-            openai_image_output_format=os.getenv("OPENAI_IMAGE_OUTPUT_FORMAT", "jpeg"),
+            openai_text_model=_optional("OPENAI_TEXT_MODEL", "gpt-4.1-mini"),
+            openai_image_model=_optional("OPENAI_IMAGE_MODEL", "gpt-image-2"),
+            openai_image_quality=_optional("OPENAI_IMAGE_QUALITY", "low"),
+            openai_image_size=_optional("OPENAI_IMAGE_SIZE", "1024x1024"),
+            openai_image_output_format=_optional("OPENAI_IMAGE_OUTPUT_FORMAT", "jpeg"),
             telegram_bot_token=_required("TELEGRAM_BOT_TOKEN"),
             telegram_admin_chat_id=_required("TELEGRAM_ADMIN_CHAT_ID"),
             cloudflare_account_id=_required("CLOUDFLARE_ACCOUNT_ID"),
@@ -55,7 +60,7 @@ class Settings:
             r2_public_base_url=_required("CLOUDFLARE_R2_PUBLIC_BASE_URL").rstrip("/"),
             worker_base_url=_required("WORKER_BASE_URL").rstrip("/"),
             worker_shared_secret=_required("WORKER_SHARED_SECRET"),
-            timezone=os.getenv("CYBERBRIEFS_TIMEZONE", "Asia/Dubai"),
-            brand_name=os.getenv("CYBERBRIEFS_BRAND_NAME", "CyberBriefsDaily"),
+            timezone=_optional("CYBERBRIEFS_TIMEZONE", "Asia/Dubai"),
+            brand_name=_optional("CYBERBRIEFS_BRAND_NAME", "CyberBriefsDaily"),
             site_url=os.getenv("CYBERBRIEFS_SITE_URL") or None,
         )
