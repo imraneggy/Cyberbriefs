@@ -24,6 +24,32 @@ FREE_TEXT_PROVIDERS = {"github_models", "groq", "huggingface"}
 FREE_IMAGE_PROVIDERS = {"pollinations", "huggingface", "cloudflare"}
 
 
+def _enrich_image_prompt(raw_prompt: str, topic: str) -> str:
+    """Defensive wrapper. If the LLM produced a topic-less or too-short image
+    prompt (e.g. "create a polished infographic"), prepend the topic and a
+    proven visual style so the image model has enough to draw on.
+
+    Defense-in-depth — the LLM prompt already asks for topic-rich image
+    prompts, but small free-tier models sometimes ignore that guidance.
+    """
+    p = (raw_prompt or "").strip()
+    topic_lower = (topic or "").lower()
+    # If the prompt already mentions the topic substantively, leave it alone
+    if topic_lower and any(
+        kw in p.lower() for kw in topic_lower.split() if len(kw) > 4
+    ):
+        return p
+    # Otherwise, prepend a topic-anchored visual brief
+    return (
+        f"Flat-design Instagram infographic about: {topic}. "
+        f"Navy blue and teal color palette on white background. "
+        f"Strong title text at the top, 2-3 supporting icons with short labels. "
+        f"Clean isometric style, no photoreal people, no fake logos. "
+        f"Square 1024x1024. "
+        f"{p}"
+    ).strip()
+
+
 class PostGenerator:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
@@ -84,11 +110,12 @@ class PostGenerator:
                     post=post, slides=slides
                 )
                 slide_images = [
-                    (self.free_image.generate_image(p), "jpeg")
+                    (self.free_image.generate_image(_enrich_image_prompt(p, topic.topic)), "jpeg")
                     for p in slide_prompts
                 ]
             else:
-                slide_images = [(self.free_image.generate_image(post.image_prompt), "jpeg")]
+                enriched = _enrich_image_prompt(post.image_prompt, topic.topic)
+                slide_images = [(self.free_image.generate_image(enriched), "jpeg")]
         else:
             raise RuntimeError(f"Unknown content_provider: {self.settings.content_provider}")
 

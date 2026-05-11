@@ -69,9 +69,20 @@ Requirements:
 - Caption should use short paragraphs and scannable bullets.
 - Include practical defense steps.
 - Do not invent specific breach claims, victim names, dates, CVEs, or statistics.
-- Image prompt must ask for a polished modern infographic with strong hierarchy,
-  clean icons, no fake logos, no tiny unreadable text, and no photorealistic people.
 - Hashtags must include a mix of cybersecurity, scam awareness, privacy, and tech tags.
+
+CRITICAL — image_prompt rules:
+The image_prompt is fed DIRECTLY into a text-to-image model (FLUX/SDXL). It must be a
+visual description, NOT a list of design rules. It MUST mention the topic so the
+model knows what to draw. Examples of GOOD image_prompts for "{topic.topic}":
+  "Flat-design Instagram infographic about {topic.topic}. Navy blue and teal palette,
+   white background. Central illustration: <topic-specific visual metaphor, e.g.
+   padlock with binary code / phishing hook on email envelope>. 3 supporting icons
+   labelled '<step1>', '<step2>', '<step3>'. Bold title text at top: '<short title>'.
+   Brand mark bottom-right. No photoreal people. Clean isometric style."
+Examples of BAD image_prompts (DO NOT produce these):
+  "Create a polished modern infographic." (no topic, no visual)
+  "An infographic explaining ransomware." (too vague)
 
 Return ONLY a JSON object matching this schema:
 {json.dumps(POST_SCHEMA, indent=2)}
