@@ -1,0 +1,54 @@
+name: Test Pipeline Without OpenAI
+
+on:
+  workflow_dispatch:
+    inputs:
+      slot:
+        description: "Test slot label"
+        required: true
+        default: "manual"
+        type: choice
+        options:
+          - manual
+          - morning
+          - evening
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: cyberbriefs-generate
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: python -m pip install -e .
+
+      - name: Generate test post without OpenAI
+        env:
+          CONTENT_PROVIDER: test
+          OPENAI_TEXT_MODEL: gpt-4.1-mini
+          OPENAI_IMAGE_MODEL: gpt-image-2
+          OPENAI_IMAGE_QUALITY: low
+          OPENAI_IMAGE_SIZE: 1024x1024
+          OPENAI_IMAGE_OUTPUT_FORMAT: jpeg
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
+          WORKER_BASE_URL: ${{ secrets.WORKER_BASE_URL }}
+          WORKER_SHARED_SECRET: ${{ secrets.WORKER_SHARED_SECRET }}
+          IMAGE_STORAGE_BACKEND: github
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          CYBERBRIEFS_GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_IMAGE_BRANCH: main
+          GITHUB_IMAGE_PATH_PREFIX: public/posts
+          CYBERBRIEFS_TIMEZONE: ${{ vars.CYBERBRIEFS_TIMEZONE || 'Asia/Dubai' }}
+          CYBERBRIEFS_BRAND_NAME: ${{ vars.CYBERBRIEFS_BRAND_NAME || 'CyberBriefsDaily' }}
+        run: python scripts/generate_post.py --slot ${{ inputs.slot }}
