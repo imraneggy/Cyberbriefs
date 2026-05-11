@@ -9,6 +9,7 @@ This repository implements:
 - Cloudflare R2 image hosting for public Instagram media URLs.
 - Cloudflare Worker Telegram approval webhook.
 - Instagram Graph API publishing after manual Telegram approval.
+- Cloudflare Worker deployment directly from GitHub Actions.
 
 The automation infrastructure can run on free tiers. OpenAI API image generation is the expected paid component.
 
@@ -33,6 +34,7 @@ Telegram Approve button
 
 ```text
 .github/workflows/
+  deploy-worker.yml
   generate-morning.yml
   generate-evening.yml
   expire-pending.yml
@@ -56,6 +58,7 @@ scripts/
   expire_pending.py
 
 docs/
+  GITHUB_WORKER_DEPLOY.md
   SETUP.md
   IMPLEMENTATION_GUIDE.md
   TECH_STACK.md
@@ -84,6 +87,8 @@ Add these in GitHub:
 
 `Settings -> Secrets and variables -> Actions -> New repository secret`
 
+Generation secrets:
+
 ```text
 OPENAI_API_KEY
 OPENAI_TEXT_MODEL
@@ -99,6 +104,19 @@ CLOUDFLARE_R2_SECRET_ACCESS_KEY
 CLOUDFLARE_R2_BUCKET
 CLOUDFLARE_R2_PUBLIC_BASE_URL
 WORKER_BASE_URL
+WORKER_SHARED_SECRET
+```
+
+Worker deployment secrets:
+
+```text
+CLOUDFLARE_API_TOKEN
+CLOUDFLARE_ACCOUNT_ID
+CLOUDFLARE_KV_NAMESPACE_ID
+TELEGRAM_BOT_TOKEN
+TELEGRAM_ADMIN_CHAT_ID
+INSTAGRAM_ACCESS_TOKEN
+INSTAGRAM_USER_ID
 WORKER_SHARED_SECRET
 ```
 
@@ -128,25 +146,28 @@ Image model notes:
 - `chatgpt-image-latest` can be used if you specifically want the image model snapshot used in ChatGPT.
 - The output format defaults to `jpeg` because public Instagram publishing is more reliable with JPEG media URLs.
 
-## Required Cloudflare Worker Secrets
+## Deploy Worker From GitHub
 
-Inside `cloudflare-worker/`, set:
+This repo includes:
 
-```bash
-wrangler secret put TELEGRAM_BOT_TOKEN
-wrangler secret put TELEGRAM_ADMIN_CHAT_ID
-wrangler secret put INSTAGRAM_ACCESS_TOKEN
-wrangler secret put INSTAGRAM_USER_ID
-wrangler secret put WORKER_SHARED_SECRET
+```text
+.github/workflows/deploy-worker.yml
 ```
 
-Create KV namespace:
+Steps:
 
-```bash
-wrangler kv namespace create POSTS_KV
+1. Create Cloudflare R2 bucket.
+2. Create Cloudflare KV namespace and save its ID as `CLOUDFLARE_KV_NAMESPACE_ID`.
+3. Create a Cloudflare API token and save it as `CLOUDFLARE_API_TOKEN`.
+4. Add Instagram Worker secrets to GitHub: `INSTAGRAM_ACCESS_TOKEN` and `INSTAGRAM_USER_ID`.
+5. Go to `Actions -> Deploy Cloudflare Worker -> Run workflow`.
+6. Copy the deployed Worker URL and save it as `WORKER_BASE_URL`.
+
+Detailed guide:
+
+```text
+docs/GITHUB_WORKER_DEPLOY.md
 ```
-
-Copy `cloudflare-worker/wrangler.toml.example` to `cloudflare-worker/wrangler.toml` and set the KV namespace ID.
 
 ## Telegram Setup
 
@@ -178,7 +199,7 @@ Use the official Instagram Graph API flow:
 4. Add Instagram Graph API.
 5. Get the Instagram business account ID.
 6. Generate a long-lived access token.
-7. Store `INSTAGRAM_ACCESS_TOKEN` and `INSTAGRAM_USER_ID` as Cloudflare Worker secrets.
+7. Store `INSTAGRAM_ACCESS_TOKEN` and `INSTAGRAM_USER_ID` as GitHub Actions secrets for Worker deployment.
 
 The Worker publishes by:
 
@@ -197,23 +218,7 @@ CLOUDFLARE_R2_PUBLIC_BASE_URL=https://your-public-r2-domain
 
 The generated image URL must be publicly fetchable by Instagram.
 
-## Deployment
-
-### 1. Deploy Worker
-
-```bash
-cd cloudflare-worker
-npm install
-npx wrangler deploy
-```
-
-### 2. Register Telegram Webhook
-
-```text
-https://api.telegram.org/bot<token>/setWebhook?url=https://<worker-url>/telegram/webhook
-```
-
-### 3. Trigger A Test Draft
+## Test A Draft
 
 In GitHub:
 
