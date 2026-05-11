@@ -492,6 +492,23 @@ def build_image_client(provider: str, env_get=os.environ.get):
     ``generate_image(prompt)`` method.
     """
     provider = provider.lower()
+    if provider == "composite":
+        # Composite = AI background + PIL text overlay = readable text always.
+        # The base provider is configurable; defaults to pollinations (free, no card).
+        from cyberbriefs.composite_image import CompositeImageClient
+        base_name = env_get("COMPOSITE_BASE_PROVIDER", "pollinations").lower()
+        # Recurse into this factory to build the base (must not be 'composite')
+        if base_name == "composite":
+            raise ValueError("COMPOSITE_BASE_PROVIDER cannot itself be 'composite'")
+        base = build_image_client(base_name, env_get)
+        return CompositeImageClient(
+            base_provider=base,
+            header_color=env_get("COMPOSITE_HEADER_COLOR", "#0F3D5C"),
+            accent_color=env_get("COMPOSITE_ACCENT_COLOR", "#14B8A6"),
+            text_color=env_get("COMPOSITE_TEXT_COLOR", "#FFFFFF"),
+            brand_text=env_get("COMPOSITE_BRAND_TEXT", "CYBERBRIEFS DAILY"),
+            font_path=env_get("COMPOSITE_FONT") or None,
+        )
     if provider == "recraft":
         api_key = env_get("RECRAFT_API_KEY")
         if not api_key:
