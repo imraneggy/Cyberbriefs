@@ -37,7 +37,8 @@ jobs:
           WORKER_BASE_URL: ${{ secrets.WORKER_BASE_URL }}
           WORKER_SHARED_SECRET: ${{ secrets.WORKER_SHARED_SECRET }}
           IMAGE_STORAGE_BACKEND: github
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          CYBERBRIEFS_GITHUB_TOKEN: ${{ github.token }}
           GITHUB_IMAGE_BRANCH: main
           GITHUB_IMAGE_PATH_PREFIX: public/posts
           CYBERBRIEFS_TIMEZONE: ${{ vars.CYBERBRIEFS_TIMEZONE || 'Asia/Dubai' }}
