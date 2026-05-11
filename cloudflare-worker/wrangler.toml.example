@@ -1,0 +1,7 @@
+name = "cyberbriefs-approval"
+main = "src/index.ts"
+compatibility_date = "2024-05-29"
+
+[[kv_namespaces]]
+binding = "POSTS_KV"
+id = "replace-with-your-kv-namespace-id"
