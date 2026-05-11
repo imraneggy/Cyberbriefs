@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import time
 from typing import Any
 
 import httpx
@@ -95,8 +96,7 @@ Return JSON only.
                 }
             },
         }
-        response = self._client.post("/responses", json=payload)
-        response.raise_for_status()
+        response = self._post_with_retries("/responses", payload, operation="generate post copy")
         data = response.json()
         raw_text = _extract_response_text(data)
         parsed = json.loads(raw_text)
@@ -120,11 +120,41 @@ Return JSON only.
             "output_format": self.image_output_format,
             "n": 1,
         }
-        response = self._client.post("/images/generations", json=payload)
-        response.raise_for_status()
+        response = self._post_with_retries("/images/generations", payload, operation="generate image")
         data = response.json()
         b64_json = data["data"][0]["b64_json"]
         return base64.b64decode(b64_json)
+
+    def _post_with_retries(
+        self,
+        path: str,
+        payload: dict[str, Any],
+        *,
+        operation: str,
+        max_attempts: int = 4,
+    ) -> httpx.Response:
+        for attempt in range(1, max_attempts + 1):
+            response = self._client.post(path, json=payload)
+            if response.status_code < 400:
+                return response
+
+            retryable = response.status_code in {408, 409, 429, 500, 502, 503, 504}
+            if retryable and attempt < max_attempts:
+                retry_after = _retry_after_seconds(response)
+                delay = retry_after if retry_after is not None else min(2 ** attempt, 30)
+                print(
+                    f"OpenAI {operation} failed with HTTP {response.status_code}; "
+                    f"retrying in {delay}s (attempt {attempt}/{max_attempts})."
+                )
+                time.sleep(delay)
+                continue
+
+            message = _openai_error_message(response)
+            raise RuntimeError(
+                f"OpenAI {operation} failed with HTTP {response.status_code}: {message}"
+            )
+
+        raise RuntimeError(f"OpenAI {operation} failed after {max_attempts} attempts")
 
 
 def _extract_response_text(data: dict[str, Any]) -> str:
@@ -144,3 +174,30 @@ def _normalise_hashtag(tag: str) -> str:
     if not clean.startswith("#"):
         clean = f"#{clean}"
     return clean.replace(" ", "")
+
+
+def _retry_after_seconds(response: httpx.Response) -> int | None:
+    value = response.headers.get("retry-after")
+    if not value:
+        return None
+    try:
+        return max(1, min(int(value), 60))
+    except ValueError:
+        return None
+
+
+def _openai_error_message(response: httpx.Response) -> str:
+    try:
+        body = response.json()
+    except ValueError:
+        return response.text[:1000]
+
+    error = body.get("error") if isinstance(body, dict) else None
+    if isinstance(error, dict):
+        parts = [
+            str(error.get("message") or "").strip(),
+            f"type={error.get('type')}" if error.get("type") else "",
+            f"code={error.get('code')}" if error.get("code") else "",
+        ]
+        return " | ".join(part for part in parts if part)
+    return json.dumps(body)[:1000]
