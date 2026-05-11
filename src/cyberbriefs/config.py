@@ -28,7 +28,7 @@ def _optional_none(name: str) -> str | None:
 
 @dataclass(frozen=True)
 class Settings:
-    openai_api_key: str
+    openai_api_key: str | None
     openai_text_model: str
     openai_image_model: str
     openai_image_quality: str
@@ -39,6 +39,7 @@ class Settings:
     worker_base_url: str
     worker_shared_secret: str
     image_storage_backend: str
+    content_provider: str
     github_repository: str | None = None
     github_token: str | None = None
     github_image_branch: str = "main"
@@ -55,9 +56,13 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
+        content_provider = _optional("CONTENT_PROVIDER", "openai").lower()
         image_storage_backend = _optional("IMAGE_STORAGE_BACKEND", "github").lower()
         github_repository = _optional_none("GITHUB_REPOSITORY")
         github_token = _optional_none("CYBERBRIEFS_GITHUB_TOKEN") or _optional_none("GITHUB_TOKEN")
+
+        if content_provider == "openai" and not _optional_none("OPENAI_API_KEY"):
+            raise RuntimeError("Missing required environment variable: OPENAI_API_KEY")
 
         if image_storage_backend == "github":
             if not github_repository:
@@ -86,7 +91,7 @@ class Settings:
                     raise RuntimeError(f"Missing required environment variable for R2 storage: {name}")
 
         return cls(
-            openai_api_key=_required("OPENAI_API_KEY"),
+            openai_api_key=_optional_none("OPENAI_API_KEY"),
             openai_text_model=_optional("OPENAI_TEXT_MODEL", "gpt-4.1-mini"),
             openai_image_model=_optional("OPENAI_IMAGE_MODEL", "gpt-image-2"),
             openai_image_quality=_optional("OPENAI_IMAGE_QUALITY", "low"),
@@ -97,6 +102,7 @@ class Settings:
             worker_base_url=_required("WORKER_BASE_URL").rstrip("/"),
             worker_shared_secret=_required("WORKER_SHARED_SECRET"),
             image_storage_backend=image_storage_backend,
+            content_provider=content_provider,
             github_repository=github_repository,
             github_token=github_token,
             github_image_branch=_optional("GITHUB_IMAGE_BRANCH", "main"),
