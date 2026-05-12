@@ -9,8 +9,10 @@ how to get **readable in-image text** while staying free.
 
 | Provider | Text rendering | Free tier | Style | Setup | Card needed |
 |---|---|---|---|---|---|
-| **Composite** ⭐ (default) | Perfect (PIL real font) | Unlimited | Infographic template | None | No |
-| **Gemini 2.5 Flash Image** ("Nano Banana") | Good (native AI, infographic-friendly) | **1500/day** | AI-generated | 1 min signup | **No** |
+| Provider | Text rendering | Free tier image quota | Style | Setup | Card needed |
+|---|---|---|---|---|---|
+| **Composite** ⭐ (default) | Perfect (PIL real font) | **Unlimited** | Infographic template | None | No |
+| Gemini 2.5 Flash Image ("Nano Banana") | Good (native AI) | ❌ **0/day on free tier** (billing required) | AI-generated | 1 min signup + billing setup | **Yes** |
 | Recraft v3 | Excellent | 50/day | Vector/flat-design | 1 min signup | **Yes (2026 change)** |
 | Ideogram v2 | Best in class | 10/day | Realistic/illustrative | 1 min signup | No |
 | NVIDIA NIM (FLUX Pro) | Good | ~1000 credits | FLUX family | 1 min signup | No |
@@ -18,17 +20,42 @@ how to get **readable in-image text** while staying free.
 | HuggingFace SD3.5 | Decent | ~50/hour | SD3 | Already config'd | No |
 | Cloudflare SDXL Lightning | Weak | 10k/day | SDXL | Already config'd | No |
 
-## Gemini setup (1 minute, no card)
+> **⚠️ Important Gemini reality check (2026):** Google quietly moved
+> `gemini-2.5-flash-image`, `gemini-3-pro-image-preview`, and
+> `gemini-3.1-flash-image-preview` to **paid tier only**. The free
+> tier `generate_content_free_tier_requests` quota for all image-gen
+> models is hard-set to **`limit: 0`**. The widely-quoted "1500/day"
+> figure is for **text generation only** — it does *not* apply to image
+> generation. To verify yourself:
+>
+> ```bash
+> curl -s -X POST \
+>   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=$GEMINI_API_KEY" \
+>   -H "Content-Type: application/json" \
+>   -d '{"contents":[{"parts":[{"text":"a blue square"}]}],"generationConfig":{"responseModalities":["TEXT","IMAGE"]}}'
+> ```
+>
+> A free-tier key will return HTTP 429 with `limit: 0` on the very first
+> request. To use Gemini for images you must enable billing on the
+> Google Cloud project the key belongs to. Pricing is ~$0.039 per image
+> at time of writing — cheap, but not free.
+
+## Gemini setup (only if you have billing enabled)
 
 1. Go to https://aistudio.google.com/ → log in with your Google account
 2. Top-left menu → **Get API Key** → **Create API key in new project**
-3. Copy the key (looks like `AIzaSy...`)
-4. In repo: Settings → Secrets and variables → Actions → **New repository secret**
+3. **Enable billing** on that project at https://console.cloud.google.com/billing
+   (without this, every image request returns HTTP 429 immediately)
+4. Copy the key (looks like `AIzaSy...`)
+5. In repo: Settings → Secrets and variables → Actions → **New repository secret**
    - Name: `GEMINI_API_KEY`
    - Value: paste
-5. Variables tab → edit `IMAGE_PROVIDER` from `composite` → `gemini`
+6. Variables tab → set `GEMINI_IMAGE_MODEL` = `gemini-2.5-flash-image`
+   (or `gemini-3.1-flash-image-preview` for newest preview)
+7. Variables tab → edit `IMAGE_PROVIDER` from `composite` → `gemini`
 
-Free tier: 1500 requests/day. You use 5/day. **300× headroom.**
+Paid-tier rate limit: 1000 RPM, no daily cap. At 5 drafts/day cost is
+~$0.20 per day or ~$6 per month. Cheap, but composite mode is free.
 
 ## Recommended: Recraft v3
 
