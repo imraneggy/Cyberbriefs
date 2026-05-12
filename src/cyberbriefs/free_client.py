@@ -406,6 +406,66 @@ class RecraftImageClient:
         return img_resp.content
 
 
+class GeminiImageClient:
+    """Google Gemini API native image generation — free tier on AI Studio.
+
+    Free tier: ~1500 requests/day, 15 RPM, no credit card.
+    Sign up at https://aistudio.google.com/ → 'Get API Key' (Google login).
+    Set GEMINI_API_KEY env var.
+
+    Default model: gemini-2.0-flash-preview-image-generation
+      Other valid choices (subject to availability):
+        gemini-2.0-flash-exp
+        gemini-2.0-flash
+
+    Image-gen via Gemini works by asking for both Text and Image modalities,
+    then extracting the inline base64-encoded image from the response. The
+    model accepts a long-form prompt and returns a 1024×1024 (or similar)
+    image. Decent text rendering — better than FLUX, not as polished as
+    DALL-E 3 or Imagen 3.
+    """
+
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "gemini-2.0-flash-preview-image-generation",
+    ) -> None:
+        self.api_key = api_key
+        self.model = model
+        self._client = httpx.Client(
+            base_url="https://generativelanguage.googleapis.com/v1beta",
+            timeout=180,
+        )
+
+    def generate_image(self, prompt: str) -> bytes:
+        body = {
+            "contents": [{"role": "user", "parts": [{"text": prompt[:2000]}]}],
+            "generationConfig": {
+                "responseModalities": ["TEXT", "IMAGE"],
+                "temperature": 0.4,
+            },
+        }
+        resp = self._client.post(
+            f"/models/{self.model}:generateContent",
+            params={"key": self.api_key},
+            json=body,
+        )
+        if resp.status_code >= 400:
+            raise RuntimeError(f"Gemini image gen failed ({resp.status_code}): {resp.text[:300]}")
+        data = resp.json()
+        # Walk candidates → content.parts to find an inline_data part with image bytes
+        for cand in data.get("candidates", []):
+            for part in cand.get("content", {}).get("parts", []):
+                inline = part.get("inlineData") or part.get("inline_data")
+                if inline and inline.get("data"):
+                    import base64
+                    return base64.b64decode(inline["data"])
+        raise RuntimeError(
+            f"Gemini returned no image part. Response keys: {list(data.keys())}; "
+            f"first 200 chars: {str(data)[:200]}"
+        )
+
+
 class NvidiaImageClient:
     """NVIDIA NIM / build.nvidia.com hosted FLUX.1 family + others.
 
@@ -508,6 +568,14 @@ def build_image_client(provider: str, env_get=os.environ.get):
             text_color=env_get("COMPOSITE_TEXT_COLOR", "#FFFFFF"),
             brand_text=env_get("COMPOSITE_BRAND_TEXT", "CYBERBRIEFS DAILY"),
             font_path=env_get("COMPOSITE_FONT") or None,
+        )
+    if provider == "gemini":
+        api_key = env_get("GEMINI_API_KEY")
+        if not api_key:
+            raise RuntimeError("gemini image provider needs GEMINI_API_KEY (free at aistudio.google.com)")
+        return GeminiImageClient(
+            api_key=api_key,
+            model=env_get("GEMINI_IMAGE_MODEL", "gemini-2.0-flash-preview-image-generation"),
         )
     if provider == "recraft":
         api_key = env_get("RECRAFT_API_KEY")

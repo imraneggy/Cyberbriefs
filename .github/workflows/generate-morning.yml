@@ -40,6 +40,9 @@ jobs:
           # Optional alternative free text providers
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}
+          # Google Gemini API native image generation (free tier, no card)
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_IMAGE_MODEL: ${{ vars.GEMINI_IMAGE_MODEL || 'gemini-2.0-flash-preview-image-generation' }}
           # Recraft v3 (best text-in-image) and NVIDIA NIM (FLUX-Pro variants)
           RECRAFT_API_KEY: ${{ secrets.RECRAFT_API_KEY }}
           RECRAFT_MODEL: ${{ vars.RECRAFT_MODEL || 'recraftv3' }}

@@ -7,14 +7,28 @@ how to get **readable in-image text** while staying free.
 
 ## Quick comparison (all free)
 
-| Provider | Text rendering | Free tier | Style | Setup |
-|---|---|---|---|---|
-| **Recraft v3** ⭐ | Excellent (purpose-built) | **50/day** | Vector/flat-design | 1 min signup |
-| **Ideogram v2** | Best in class | 10/day | Realistic/illustrative | 1 min signup |
-| **NVIDIA NIM (FLUX Pro)** | Good (better than basic FLUX) | ~1000 credits | FLUX family | 1 min signup |
-| Pollinations (default) | Weak (FLUX limitation) | Unlimited | FLUX-style | None |
-| HuggingFace SD3.5 | Decent | ~50/hour | SD3 | Already config'd |
-| Cloudflare SDXL Lightning | Weak | 10k/day | SDXL | Already config'd |
+| Provider | Text rendering | Free tier | Style | Setup | Card needed |
+|---|---|---|---|---|---|
+| **Composite** ⭐ (default) | Perfect (PIL real font) | Unlimited | Infographic template | None | No |
+| **Gemini 2.0 Flash** | Good (native AI) | **1500/day** | AI-generated | 1 min signup | **No** |
+| Recraft v3 | Excellent | 50/day | Vector/flat-design | 1 min signup | **Yes (2026 change)** |
+| Ideogram v2 | Best in class | 10/day | Realistic/illustrative | 1 min signup | No |
+| NVIDIA NIM (FLUX Pro) | Good | ~1000 credits | FLUX family | 1 min signup | No |
+| Pollinations | Weak (FLUX) | Unlimited | FLUX-style | None | No |
+| HuggingFace SD3.5 | Decent | ~50/hour | SD3 | Already config'd | No |
+| Cloudflare SDXL Lightning | Weak | 10k/day | SDXL | Already config'd | No |
+
+## Gemini setup (1 minute, no card)
+
+1. Go to https://aistudio.google.com/ → log in with your Google account
+2. Top-left menu → **Get API Key** → **Create API key in new project**
+3. Copy the key (looks like `AIzaSy...`)
+4. In repo: Settings → Secrets and variables → Actions → **New repository secret**
+   - Name: `GEMINI_API_KEY`
+   - Value: paste
+5. Variables tab → edit `IMAGE_PROVIDER` from `composite` → `gemini`
+
+Free tier: 1500 requests/day. You use 5/day. **300× headroom.**
 
 ## Recommended: Recraft v3
 
