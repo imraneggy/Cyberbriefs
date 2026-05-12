@@ -114,8 +114,15 @@ class PostGenerator:
                     for p in slide_prompts
                 ]
             else:
-                enriched = _enrich_image_prompt(post.image_prompt, topic.topic)
-                slide_images = [(self.free_image.generate_image(enriched), "jpeg")]
+                # If the image provider supports generate_from_post (composite
+                # infographic renderer), use it — it builds a real multi-section
+                # infographic from the LLM caption. Otherwise fall back to
+                # the prompt-only path.
+                if hasattr(self.free_image, "generate_from_post"):
+                    slide_images = [(self.free_image.generate_from_post(post), "jpeg")]
+                else:
+                    enriched = _enrich_image_prompt(post.image_prompt, topic.topic)
+                    slide_images = [(self.free_image.generate_image(enriched), "jpeg")]
         else:
             raise RuntimeError(f"Unknown content_provider: {self.settings.content_provider}")
 
