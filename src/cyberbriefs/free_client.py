@@ -413,10 +413,11 @@ class GeminiImageClient:
     Sign up at https://aistudio.google.com/ → 'Get API Key' (Google login).
     Set GEMINI_API_KEY env var.
 
-    Default model: gemini-2.0-flash-preview-image-generation
-      Other valid choices (subject to availability):
-        gemini-2.0-flash-exp
-        gemini-2.0-flash
+    Default model: gemini-2.5-flash-image  (Google's "Nano Banana"; native infographic-friendly)
+      Other valid choices (subject to availability — query ListModels for current set):
+        gemini-3-pro-image-preview
+        gemini-3.1-flash-image-preview
+      Older names like 'gemini-2.0-flash-preview-image-generation' are now 404.
 
     Image-gen via Gemini works by asking for both Text and Image modalities,
     then extracting the inline base64-encoded image from the response. The
@@ -428,7 +429,7 @@ class GeminiImageClient:
     def __init__(
         self,
         api_key: str,
-        model: str = "gemini-2.0-flash-preview-image-generation",
+        model: str = "gemini-2.5-flash-image",
     ) -> None:
         self.api_key = api_key
         self.model = model
@@ -575,7 +576,7 @@ def build_image_client(provider: str, env_get=os.environ.get):
             raise RuntimeError("gemini image provider needs GEMINI_API_KEY (free at aistudio.google.com)")
         return GeminiImageClient(
             api_key=api_key,
-            model=env_get("GEMINI_IMAGE_MODEL", "gemini-2.0-flash-preview-image-generation"),
+            model=env_get("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image"),
         )
     if provider == "recraft":
         api_key = env_get("RECRAFT_API_KEY")

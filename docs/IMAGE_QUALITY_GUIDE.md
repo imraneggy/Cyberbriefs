@@ -10,7 +10,7 @@ how to get **readable in-image text** while staying free.
 | Provider | Text rendering | Free tier | Style | Setup | Card needed |
 |---|---|---|---|---|---|
 | **Composite** ⭐ (default) | Perfect (PIL real font) | Unlimited | Infographic template | None | No |
-| **Gemini 2.0 Flash** | Good (native AI) | **1500/day** | AI-generated | 1 min signup | **No** |
+| **Gemini 2.5 Flash Image** ("Nano Banana") | Good (native AI, infographic-friendly) | **1500/day** | AI-generated | 1 min signup | **No** |
 | Recraft v3 | Excellent | 50/day | Vector/flat-design | 1 min signup | **Yes (2026 change)** |
 | Ideogram v2 | Best in class | 10/day | Realistic/illustrative | 1 min signup | No |
 | NVIDIA NIM (FLUX Pro) | Good | ~1000 credits | FLUX family | 1 min signup | No |
