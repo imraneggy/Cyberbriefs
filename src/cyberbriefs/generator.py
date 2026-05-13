@@ -20,8 +20,11 @@ from cyberbriefs.test_content import generate_test_image_svg, generate_test_post
 from cyberbriefs.topics import choose_topic
 
 
-FREE_TEXT_PROVIDERS = {"github_models", "groq", "huggingface"}
-FREE_IMAGE_PROVIDERS = {"composite", "gemini", "recraft", "nvidia", "pollinations", "huggingface", "cloudflare"}
+FREE_TEXT_PROVIDERS = {"github_models", "groq", "huggingface", "ollama"}
+FREE_IMAGE_PROVIDERS = {
+    "prompt_only",   # Flow A: skip image gen, deliver prompt + caption via Telegram for manual posting
+    "composite", "gemini", "recraft", "nvidia", "pollinations", "huggingface", "cloudflare",
+}
 
 
 def _enrich_image_prompt(raw_prompt: str, topic: str) -> str:
@@ -53,19 +56,29 @@ def _enrich_image_prompt(raw_prompt: str, topic: str) -> str:
 class PostGenerator:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
+        self.prompt_only = settings.image_provider == "prompt_only"
         self.openai = self._build_openai(settings)
         self.free_text = self._build_free_text(settings)
         self.free_image = self._build_free_image(settings)
-        self.image_storage = self._build_image_storage(settings)
+        # In prompt-only mode the system never publishes — skip storage + worker
+        # so the user is not required to provision them.
+        self.image_storage = None if self.prompt_only else self._build_image_storage(settings)
         self.telegram = TelegramClient(
             bot_token=settings.telegram_bot_token,
             admin_chat_id=settings.telegram_admin_chat_id,
         )
-        self._worker = httpx.Client(base_url=settings.worker_base_url, timeout=60)
+        self._worker = (
+            None if self.prompt_only
+            else httpx.Client(base_url=settings.worker_base_url, timeout=60)
+        )
 
     def run(self, *, slot: str) -> GeneratedPost:
         topic = choose_topic(slot)
         slides = max(1, min(10, self.settings.carousel_slides))
+
+        # Prompt-only flow: text gen → Telegram draft → done. No image, no IG.
+        if self.prompt_only:
+            return self._run_prompt_only(topic=topic, slot=slot)
 
         # 1. Generate post copy and image bytes for each slide
         if self.settings.content_provider == "test":
@@ -150,6 +163,39 @@ class PostGenerator:
         self._register_post(post)
         post.telegram_message_id = self.telegram.send_approval_request(post)
         self._register_post(post)
+        return post
+
+    # ── prompt-only flow ────────────────────────────────────────────────
+
+    def _run_prompt_only(self, *, topic, slot: str) -> GeneratedPost:
+        """Generate post copy with the chosen text provider and deliver it
+        verbatim to Telegram as a copy-paste ready draft. Skips image gen,
+        image storage, Worker registration, and Instagram publish entirely.
+        """
+        if self.settings.content_provider == "test":
+            post = generate_test_post(
+                topic=topic, slot=slot, brand_name=self.settings.brand_name
+            )
+        elif self.settings.content_provider == "openai":
+            if not self.openai:
+                raise RuntimeError("OpenAI content provider requires OPENAI_API_KEY")
+            post = self.openai.generate_post_copy(
+                topic=topic, slot=slot, brand_name=self.settings.brand_name
+            )
+        elif self.settings.content_provider in FREE_TEXT_PROVIDERS:
+            if not self.free_text:
+                raise RuntimeError(
+                    f"Free text provider {self.settings.content_provider} not initialised"
+                )
+            post = self.free_text.generate_post_copy(
+                topic=topic, slot=slot, brand_name=self.settings.brand_name
+            )
+        else:
+            raise RuntimeError(f"Unknown content_provider: {self.settings.content_provider}")
+
+        post.status = "pending_approval"
+        post.image_prompt = _enrich_image_prompt(post.image_prompt, topic.topic)
+        post.telegram_message_id = self.telegram.send_draft_only(post)
         return post
 
     # ── carousel helpers ────────────────────────────────────────────────
@@ -247,6 +293,11 @@ class PostGenerator:
 
     @staticmethod
     def _build_free_image(settings: Settings):
+        # prompt_only is content-provider-agnostic — it just skips image gen
+        # entirely, so always wire it up regardless of which text provider
+        # is selected.
+        if settings.image_provider == "prompt_only":
+            return build_image_client("prompt_only")
         if settings.content_provider not in FREE_TEXT_PROVIDERS:
             return None
         if settings.image_provider not in FREE_IMAGE_PROVIDERS:

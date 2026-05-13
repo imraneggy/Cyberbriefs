@@ -11,7 +11,8 @@ how to get **readable in-image text** while staying free.
 |---|---|---|---|---|---|
 | Provider | Text rendering | Free tier image quota | Style | Setup | Card needed |
 |---|---|---|---|---|---|
-| **Composite** ⭐ (default) | Perfect (PIL real font) | **Unlimited** | Infographic template | None | No |
+| **`prompt_only`** ⭐⭐ (local draft mode) | N/A — you generate the image | **Unlimited** | Whatever your AI subscription produces | 5 min — see `docs/LOCAL_OLLAMA_DRAFT_MODE.md` | No |
+| **Composite** ⭐ (auto-publish default) | Perfect (PIL real font) | **Unlimited** | Infographic template | None | No |
 | Gemini 2.5 Flash Image ("Nano Banana") | Good (native AI) | ❌ **0/day on free tier** (billing required) | AI-generated | 1 min signup + billing setup | **Yes** |
 | Recraft v3 | Excellent | 50/day | Vector/flat-design | 1 min signup | **Yes (2026 change)** |
 | Ideogram v2 | Best in class | 10/day | Realistic/illustrative | 1 min signup | No |

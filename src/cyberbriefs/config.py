@@ -65,6 +65,11 @@ class Settings:
     def from_env(cls) -> "Settings":
         content_provider = _optional("CONTENT_PROVIDER", "openai").lower()
         image_storage_backend = _optional("IMAGE_STORAGE_BACKEND", "github").lower()
+        image_provider = _optional("IMAGE_PROVIDER", "pollinations").lower()
+        # In prompt-only mode we never store an image or publish via Worker,
+        # so the GitHub-storage credentials become optional. The cron only
+        # needs Telegram + a text LLM (Ollama is free, GitHub Models too).
+        prompt_only = image_provider == "prompt_only"
         github_repository = _optional_none("GITHUB_REPOSITORY")
         github_token = _optional_none("CYBERBRIEFS_GITHUB_TOKEN") or _optional_none("GITHUB_TOKEN")
 
@@ -80,8 +85,11 @@ class Settings:
             raise RuntimeError("groq provider needs GROQ_API_KEY")
         if content_provider == "huggingface" and not _optional_none("HUGGINGFACE_API_KEY"):
             raise RuntimeError("huggingface provider needs HUGGINGFACE_API_KEY")
+        # ollama needs no API key — Ollama runs locally on the host and is
+        # reached via http://localhost:11434. We don't pre-check connectivity
+        # here; the client surfaces a clear error if Ollama isn't running.
 
-        if image_storage_backend == "github":
+        if image_storage_backend == "github" and not prompt_only:
             if not github_repository:
                 raise RuntimeError("Missing required environment variable for GitHub storage: GITHUB_REPOSITORY")
             if not github_token:
@@ -116,8 +124,10 @@ class Settings:
             openai_image_output_format=_optional("OPENAI_IMAGE_OUTPUT_FORMAT", "jpeg"),
             telegram_bot_token=_required("TELEGRAM_BOT_TOKEN"),
             telegram_admin_chat_id=_required("TELEGRAM_ADMIN_CHAT_ID"),
-            worker_base_url=_required("WORKER_BASE_URL").rstrip("/"),
-            worker_shared_secret=_required("WORKER_SHARED_SECRET"),
+            # Worker is only needed for the auto-publish flow. In prompt-only
+            # mode there is no publish step, so accept empty values.
+            worker_base_url=(_optional("WORKER_BASE_URL", "") if prompt_only else _required("WORKER_BASE_URL")).rstrip("/"),
+            worker_shared_secret=(_optional("WORKER_SHARED_SECRET", "") if prompt_only else _required("WORKER_SHARED_SECRET")),
             image_storage_backend=image_storage_backend,
             content_provider=content_provider,
             github_repository=github_repository,
@@ -134,5 +144,5 @@ class Settings:
             brand_name=_optional("CYBERBRIEFS_BRAND_NAME", "CyberBriefsDaily"),
             site_url=os.getenv("CYBERBRIEFS_SITE_URL") or None,
             carousel_slides=max(1, min(10, int(_optional("CAROUSEL_SLIDES", "1")))),
-            image_provider=_optional("IMAGE_PROVIDER", "pollinations").lower(),
+            image_provider=image_provider,
         )

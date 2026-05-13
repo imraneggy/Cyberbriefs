@@ -13,6 +13,42 @@ class TelegramClient:
             timeout=60,
         )
 
+    def send_draft_only(self, post: GeneratedPost) -> int:
+        """Send a text-only draft for the prompt-only flow.
+
+        Posts ONE Telegram message containing three copy-paste blocks: the
+        image prompt (for the user's image tool), the Instagram caption,
+        and the hashtags. No photo attachment, no approve/reject buttons —
+        the user handles image gen and IG posting manually.
+
+        Each block is in <pre><code> so Telegram renders a tap-to-copy
+        affordance on mobile.
+        """
+        cap_for_ig = post.caption_for_instagram()
+        # Telegram sendMessage caps at 4096 chars; squeeze if needed.
+        text = (
+            f"<b>{_telegram_escape(post.headline)}</b>\n"
+            f"<i>{_telegram_escape(post.topic)}</i>\n\n"
+            f"<b>IMAGE PROMPT</b> — paste into ChatGPT / Gemini / Midjourney:\n"
+            f"<pre><code>{_telegram_escape(post.image_prompt)}</code></pre>\n"
+            f"<b>INSTAGRAM CAPTION</b> — paste into the IG post:\n"
+            f"<pre><code>{_telegram_escape(cap_for_ig)}</code></pre>\n"
+            f"<b>POST ID:</b> <code>{post.post_id}</code>"
+        )
+        if len(text) > 4090:
+            text = text[:4080] + "\n…(truncated)"
+        response = self._client.post(
+            "/sendMessage",
+            json={
+                "chat_id": self.admin_chat_id,
+                "text": text,
+                "parse_mode": "HTML",
+                "disable_web_page_preview": True,
+            },
+        )
+        response.raise_for_status()
+        return int(response.json()["result"]["message_id"])
+
     def send_approval_request(self, post: GeneratedPost) -> int:
         if not post.r2_image_url:
             raise RuntimeError("Cannot send approval without r2_image_url")

@@ -245,6 +245,68 @@ class GroqClient(_BaseChatClient):
         return self._build_post(self._extract_json_object(raw), topic, slot)
 
 
+class OllamaTextClient(_BaseChatClient):
+    """Local Ollama — 100% private, zero cost, fully offline.
+
+    Talks to Ollama's OpenAI-compatible endpoint at /v1/chat/completions.
+    Default base URL is http://localhost:11434 — override via OLLAMA_BASE_URL
+    if Ollama runs on another host or port.
+
+    Default model: cyberbriefs:latest (custom model created from local/cyberbriefs.Modelfile)
+    Fallback chain if the custom model is not installed: qwen3:8b → phi4-mini
+
+    The custom Modelfile bakes the cybersecurity-editor system prompt and
+    sample outputs into the model so each call needs only the topic — this
+    is the "training" step (technically a prompt-baked Ollama model, not a
+    LoRA fine-tune, but it gives deterministic style at zero training cost).
+    """
+
+    def __init__(
+        self,
+        base_url: str = "http://localhost:11434",
+        model: str = "cyberbriefs:latest",
+        timeout: float = 600.0,
+    ) -> None:
+        # 600s tolerates cold-load of a 5GB model on CPU. Real warm calls
+        # complete in 20-60s; the timeout only matters for the first cron
+        # firing after a system restart.
+        self.model = model
+        self._client = httpx.Client(base_url=base_url.rstrip("/"), timeout=timeout)
+
+    def generate_post_copy(self, *, topic: TopicCandidate, slot: str, brand_name: str) -> GeneratedPost:
+        prompt = _post_prompt(topic, slot, brand_name)
+        # /no_think suppresses qwen3's reasoning trace so the full token budget
+        # goes to the JSON answer. Harmless on phi4-mini and llama variants.
+        user_prompt = f"{prompt}\n\n/no_think"
+        resp = self._client.post(
+            "/v1/chat/completions",
+            json={
+                "model": self.model,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a cybersecurity infographic editor. "
+                            "Output a single valid JSON object only, no preamble, no reasoning."
+                        ),
+                    },
+                    {"role": "user", "content": user_prompt},
+                ],
+                "temperature": 0.6,
+                "response_format": {"type": "json_object"},
+                "stream": False,
+            },
+        )
+        if resp.status_code >= 400:
+            raise RuntimeError(
+                f"Ollama call failed ({resp.status_code}): {resp.text[:300]} — "
+                f"check Ollama is running and model '{self.model}' is installed "
+                f"(run `ollama list`; create with local/cyberbriefs.Modelfile)"
+            )
+        raw = resp.json()["choices"][0]["message"]["content"]
+        return self._build_post(self._extract_json_object(raw), topic, slot)
+
+
 class HuggingFaceTextClient(_BaseChatClient):
     """Hugging Face Inference API — free tier, ~100k tokens/day on common models."""
 
@@ -545,7 +607,31 @@ def build_text_client(provider: str, env_get=os.environ.get):
         if not api_key:
             raise RuntimeError("huggingface text provider needs HUGGINGFACE_API_KEY env var")
         return HuggingFaceTextClient(api_key=api_key, model=env_get("HUGGINGFACE_TEXT_MODEL", "meta-llama/Llama-3.1-8B-Instruct"))
+    if provider == "ollama":
+        return OllamaTextClient(
+            base_url=env_get("OLLAMA_BASE_URL", "http://localhost:11434"),
+            model=env_get("OLLAMA_MODEL", "cyberbriefs:latest"),
+        )
     raise ValueError(f"Unknown free text provider: {provider}")
+
+
+class PromptOnlyImageClient:
+    """Sentinel — does NOT generate an image. Signals the generator that the
+    user wants prompt-only delivery: the LLM-produced image_prompt is sent
+    verbatim via Telegram for the user to paste into their own image tool.
+
+    Required for the "Flow A" prompt-only drafting mode where the system
+    drafts the post text + image prompt and the user handles image gen +
+    Instagram posting manually.
+    """
+
+    is_prompt_only = True  # sentinel flag the generator checks for
+
+    def generate_image(self, prompt: str) -> bytes:  # pragma: no cover — defensive
+        raise RuntimeError(
+            "PromptOnlyImageClient.generate_image() should never be called. "
+            "The generator must short-circuit when image_provider == 'prompt_only'."
+        )
 
 
 def build_image_client(provider: str, env_get=os.environ.get):
@@ -553,6 +639,8 @@ def build_image_client(provider: str, env_get=os.environ.get):
     ``generate_image(prompt)`` method.
     """
     provider = provider.lower()
+    if provider == "prompt_only":
+        return PromptOnlyImageClient()
     if provider == "composite":
         # Composite = AI background + PIL text overlay = readable text always.
         # The base provider is configurable; defaults to pollinations (free, no card).
