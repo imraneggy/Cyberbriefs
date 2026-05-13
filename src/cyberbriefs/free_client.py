@@ -82,17 +82,56 @@ Hashtags (return as array, WITHOUT the leading "#" — the pipeline adds it):
 Image_prompt: see CRITICAL rules below.
 
 CRITICAL — image_prompt rules:
-The image_prompt is fed DIRECTLY into a text-to-image model (FLUX/SDXL). It must be a
-visual description, NOT a list of design rules. It MUST mention the topic so the
-model knows what to draw. Examples of GOOD image_prompts for "{topic.topic}":
-  "Flat-design Instagram infographic about {topic.topic}. Navy blue and teal palette,
-   white background. Central illustration: <topic-specific visual metaphor, e.g.
-   padlock with binary code / phishing hook on email envelope>. 3 supporting icons
-   labelled '<step1>', '<step2>', '<step3>'. Bold title text at top: '<short title>'.
-   Brand mark bottom-right. No photoreal people. Clean isometric style."
+The image_prompt is pasted by a HUMAN directly into ChatGPT, Gemini, DALL-E, or
+Midjourney to generate a TRUE INFOGRAPHIC POSTER, not a stylized illustration.
+The prompt must instruct the image model to produce a multi-panel infographic
+with readable text labels. Image models are weak at text rendering, so EVERY
+text string that should appear in the image must be written in single quotes
+exactly as it should read.
+
+Structure each image_prompt with these blocks, in this order:
+
+  1. FRAMING (first sentence — forces infographic style):
+       "Modern magazine-style infographic poster about <topic>. Editorial
+       layout, square 1:1 format. Clean typography, generous whitespace."
+
+  2. PALETTE & BACKGROUND:
+       "Deep navy (#0F3D5C) background with teal (#14B8A6) accents. White
+       text. One bright accent color for icons."
+
+  3. HEADER BAND:
+       "Top header band reads '<TITLE IN CAPS, 3-6 words>' in bold white
+       sans-serif. Small tagline below it reads '<one-line subtitle>'."
+
+  4. MAIN PANEL LAYOUT (this is what makes it look like an infographic):
+       "Body is divided into THREE numbered sections, side-by-side or in a
+       3-row stack. Each section has: a large flat-design icon (described
+       concretely — '<padlock icon>', '<magnifying glass icon>',
+       '<phone with shield icon>'), a bold 2-3 word section heading, and
+       one short text line of 5-8 words."
+     Write the exact text for EACH section. Example:
+       "Section 1 icon: padlock. Heading: 'USE A PASSWORD MANAGER'.
+       Subtext: 'One unique password per site.'
+       Section 2 icon: phone with shield. Heading: 'TURN ON 2FA'.
+       Subtext: 'Catches a stolen password.'
+       Section 3 icon: magnifying glass. Heading: 'CHECK FOR LEAKS'.
+       Subtext: 'Search haveibeenpwned.com.'"
+
+  5. FOOTER BAND:
+       "Footer band reads 'CYBERBRIEFS DAILY' in small caps, bottom-right."
+
+  6. STYLE GUARD-RAILS (always include):
+       "Flat vector style, isometric icons, NO photoreal people, NO real
+       brand logos, NO QR codes that decode to anything, NO illegible
+       small text. All text must be crisply readable."
+
 Examples of BAD image_prompts (DO NOT produce these):
-  "Create a polished modern infographic." (no topic, no visual)
+  "Create a polished modern infographic." (no topic, no visual, no text)
   "An infographic explaining ransomware." (too vague)
+  "Cybersecurity image with people working on laptops." (photoreal trap)
+  "Modern design illustration with cyber elements." (no infographic structure)
+
+The image_prompt MUST be at least 400 characters and follow all six blocks.
 
 Return ONLY a JSON object matching this schema:
 {json.dumps(POST_SCHEMA, indent=2)}

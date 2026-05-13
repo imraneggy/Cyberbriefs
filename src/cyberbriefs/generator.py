@@ -28,29 +28,53 @@ FREE_IMAGE_PROVIDERS = {
 
 
 def _enrich_image_prompt(raw_prompt: str, topic: str) -> str:
-    """Defensive wrapper. If the LLM produced a topic-less or too-short image
-    prompt (e.g. "create a polished infographic"), prepend the topic and a
-    proven visual style so the image model has enough to draw on.
+    """Defensive wrapper that guarantees the image_prompt sent to Telegram
+    will produce a TRUE infographic poster when pasted into an AI image
+    tool (ChatGPT / Gemini / Midjourney) — not a generic illustration.
 
-    Defense-in-depth — the LLM prompt already asks for topic-rich image
-    prompts, but small free-tier models sometimes ignore that guidance.
+    Behaviour:
+      - If the LLM produced something topic-anchored AND already mentions
+        the words "magazine" / "infographic poster" / a numbered-section
+        layout, leave it alone.
+      - Otherwise prepend a 6-block scaffold (framing → palette → header
+        band → 3-panel body → footer → style guard-rails) so a downstream
+        image model has all the structural cues it needs to render a
+        real infographic with readable text.
+
+    Defense-in-depth — the LLM prompt already asks for this shape, but
+    small free-tier models (phi4-mini in particular) sometimes shortcut.
     """
     p = (raw_prompt or "").strip()
     topic_lower = (topic or "").lower()
-    # If the prompt already mentions the topic substantively, leave it alone
-    if topic_lower and any(
+    has_topic = bool(topic_lower) and any(
         kw in p.lower() for kw in topic_lower.split() if len(kw) > 4
-    ):
+    )
+    has_infographic_framing = any(
+        marker in p.lower()
+        for marker in ("magazine-style", "infographic poster", "editorial layout", "three numbered sections", "3 numbered sections")
+    )
+    if has_topic and has_infographic_framing and len(p) >= 350:
         return p
-    # Otherwise, prepend a topic-anchored visual brief
-    return (
-        f"Flat-design Instagram infographic about: {topic}. "
-        f"Navy blue and teal color palette on white background. "
-        f"Strong title text at the top, 2-3 supporting icons with short labels. "
-        f"Clean isometric style, no photoreal people, no fake logos. "
-        f"Square 1024x1024. "
-        f"{p}"
-    ).strip()
+
+    # Build a scaffold the image model will reliably render as an infographic.
+    scaffold = (
+        f"Modern magazine-style infographic poster about {topic}. "
+        f"Editorial layout, square 1:1 format. Clean typography, generous whitespace. "
+        f"Deep navy (#0F3D5C) background with teal (#14B8A6) accents, white text, "
+        f"one bright coral accent color for icons. "
+        f"Top header band reads the title in bold white sans-serif. "
+        f"Body divided into THREE numbered sections in a 3-row stack. Each section: "
+        f"a large flat-design icon (padlock / shield / magnifying glass / phone), "
+        f"a bold 2-3 word ALL CAPS heading, one 5-8 word subtext line below. "
+        f"Footer band reads 'CYBERBRIEFS DAILY' small caps bottom-right. "
+        f"Flat vector style, isometric icons, no photoreal people, no real brand "
+        f"logos, all text crisply readable. "
+    )
+    # If we had a usable raw prompt, append it after the scaffold so any
+    # topic-specific visual cues the LLM did supply still get through.
+    if p:
+        scaffold += f"Topic-specific details: {p}"
+    return scaffold.strip()
 
 
 class PostGenerator:
