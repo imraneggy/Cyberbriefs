@@ -62,14 +62,24 @@ Topic: {topic.topic}
 Angle: {topic.angle}
 Slot: {slot}
 
-Requirements:
-- Single square infographic, not a carousel.
-- Clear, factual, non-alarmist.
-- Audience: founders, IT admins, students, and everyday users.
-- Caption should use short paragraphs and scannable bullets.
-- Include practical defense steps.
+Caption tone & format (these rules are non-negotiable — the caption is
+pasted directly into Instagram by a human, no editing step):
+- Write like you'd talk to a friend, not like a corporate blog post.
+- One short hook line that names the threat or the benefit. May start with an emoji.
+- Empty line, then 3-5 bullet lines. Each bullet starts with "- ".
+- Use relevant emojis sparingly at the start of bullets or hook (🔐 🛡️ ⚠️ 🔍 💻 📱 — 1-2 max).
+- One closing line ("Stay safe out there." / "Save this for later." style).
+- ABSOLUTELY NO markdown syntax — no **bold**, no *italics*, no ## headings,
+  no [links](urls). Instagram renders those as literal characters.
+- NO disclaimers, NO "Educational content only", NO source citations in caption.
+- Length: 70-150 words total.
+
+Hashtags (return as array, WITHOUT the leading "#" — the pipeline adds it):
+- 8-12 strings, mixing broad (CyberSecurity, InfoSec) and topic-specific.
+- camelCase or singleWord. No spaces, no punctuation.
 - Do not invent specific breach claims, victim names, dates, CVEs, or statistics.
-- Hashtags must include a mix of cybersecurity, scam awareness, privacy, and tech tags.
+
+Image_prompt: see CRITICAL rules below.
 
 CRITICAL — image_prompt rules:
 The image_prompt is fed DIRECTLY into a text-to-image model (FLUX/SDXL). It must be a
@@ -166,13 +176,52 @@ class _BaseChatClient:
         return GeneratedPost(
             topic=topic.topic,
             slot=slot,
-            headline=str(data["headline"]),
+            headline=_strip_markdown(str(data["headline"])),
             image_prompt=str(data.get("image_prompt", "")),
             image_alt_text=str(data.get("image_alt_text", "")),
-            caption=str(data["caption"]),
+            caption=_strip_markdown(str(data["caption"])),
             hashtags=[str(h).strip().lstrip("#") for h in data.get("hashtags", []) if h],
             sources=list(topic.sources),
         )
+
+
+_MD_BOLD_ITALIC = re.compile(r"(\*\*|__)(.+?)\1")
+_MD_ITALIC = re.compile(r"(?<!\*)\*(?!\s)([^*\n]+?)(?<!\s)\*(?!\*)")
+_MD_HEADER = re.compile(r"^#{1,6}\s+", re.MULTILINE)
+# Hashtag-inside-caption: a "#word" sequence with a hashtag-shaped tail.
+# Matches "#CyberSecurity" but NOT a "##" markdown header (handled separately
+# above) and not a "#" used inside English prose like "rule #1".
+_HASHTAG_IN_TEXT = re.compile(r"(?<![A-Za-z0-9_])#([A-Za-z][A-Za-z0-9_]{2,})")
+_TRAILING_DISCLAIMER = re.compile(
+    r"\s*(Educational content only[^\n]*|Source[s]?:[^\n]+|Disclaimer:[^\n]+).*$",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _strip_markdown(text: str) -> str:
+    """Defensive scrub — small models keep slipping **bold** into captions
+    despite the system prompt forbidding it, Instagram renders ** literally,
+    and the same models occasionally inline hashtags inside the caption
+    body (we want them only in the hashtags array). Strip all three.
+
+    Examples:
+        '**Set Clear Guidelines**: Discuss…' → 'Set Clear Guidelines: Discuss…'
+        '*italic* word'                      → 'italic word'
+        '## Heading'                         → 'Heading'
+        'Stay safe! #CyberSec #InfoSec'      → 'Stay safe!'
+        'tips...\\n\\nEducational content only. ...'  → 'tips...'
+    """
+    if not text:
+        return text
+    text = _MD_BOLD_ITALIC.sub(r"\2", text)
+    text = _MD_ITALIC.sub(r"\1", text)
+    text = _MD_HEADER.sub("", text)
+    text = _HASHTAG_IN_TEXT.sub("", text)
+    text = _TRAILING_DISCLAIMER.sub("", text)
+    # Clean up trailing whitespace from removed segments
+    text = re.sub(r"[ \t]+\n", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
 
 
 class GitHubModelsClient(_BaseChatClient):
